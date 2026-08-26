@@ -118,6 +118,7 @@ class CategoryOut(ORMModel):
     name: str
     kind: TransactionKind
     parent_id: int | None
+    is_active: bool
 class TransactionBase(BaseModel):
     date: Date
     kind: TransactionKind
