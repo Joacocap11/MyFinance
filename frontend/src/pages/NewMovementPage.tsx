@@ -21,7 +21,13 @@ import {
   SegmentedControl,
   Select,
 } from "../components/ui";
-import { categoryPath, formatMoney, kindLabels, today } from "../lib/format";
+import {
+  categoryPath,
+  formatMoney,
+  kindLabels,
+  sortCategories,
+  today,
+} from "../lib/format";
 import { parseMoney } from "../lib/form";
 import { useRequest } from "../lib/useRequest";
 
@@ -102,10 +108,12 @@ function MovementForm({
     [accountId, activeAccounts],
   );
   const kindCategories = useMemo(
-    () => categories.filter((item) => item.is_active && item.kind === kind),
+    () =>
+      sortCategories(categories).filter(
+        (item) => item.is_active && item.kind === kind,
+      ),
     [categories, kind],
   );
-
   const selectKind = (nextKind: MovementKind) => {
     setKind(nextKind);
     setCategoryId(0);

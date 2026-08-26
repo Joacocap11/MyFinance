@@ -34,6 +34,7 @@ import {
   formatDate,
   formatMoney,
   kindLabels,
+  sortCategories,
 } from "../lib/format";
 import { useRequest } from "../lib/useRequest";
 
@@ -623,8 +624,8 @@ function ImportPreviewRow({
           }
         >
           <option value="">Sin categoría</option>
-          {categories
-            .filter((item) => !row.kind || item.kind === row.kind)
+          {sortCategories(categories)
+            .filter((item) => item.is_active && item.kind === row.kind)
             .map((item) => (
               <option key={item.id} value={item.id}>
                 {categoryPath(item, categories)}

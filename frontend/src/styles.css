@@ -376,6 +376,10 @@ svg {
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
 }
+.field-pair > .field,
+.field-pair .input {
+  min-width: 0;
+}
 .check-row {
   display: flex;
   min-height: 44px;
@@ -630,6 +634,10 @@ svg {
   border-radius: inherit;
   background: var(--color-accent);
   transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.category-bars > li,
+.category-bar__track {
+  width: 100%;
 }
 .budget-panel h2 {
   font-variant-numeric: tabular-nums;

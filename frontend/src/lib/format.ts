@@ -90,8 +90,30 @@ export function categoryPath(
     const parent = categories.find((item) => item.id === parentId);
     if (!parent || visited.has(parent.id)) break;
     visited.add(parent.id);
+
     names.unshift(parent.name);
     parentId = parent.parent_id;
   }
   return names.join(" › ");
+}
+
+export function sortCategories(categories: Category[]): Category[] {
+  const collator = new Intl.Collator("es", { sensitivity: "base" });
+  const children = new Map<number | null, Category[]>();
+  categories.forEach((category) => {
+    const group = children.get(category.parent_id) ?? [];
+    group.push(category);
+    children.set(category.parent_id, group);
+  });
+  const result: Category[] = [];
+  const visit = (parentId: number | null) => {
+    for (const category of (children.get(parentId) ?? []).sort((a, b) =>
+      collator.compare(a.name, b.name),
+    )) {
+      result.push(category);
+      visit(category.id);
+    }
+  };
+  visit(null);
+  return result;
 }

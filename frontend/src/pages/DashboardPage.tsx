@@ -265,38 +265,38 @@ function DashboardContent({
           )}
         </section>
 
-        <section className="panel income-sources-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Ingresos del período</p>
-              <h2>Origen de ingresos</h2>
-            </div>
-          </div>
-          {report.income_sources?.length ? (
-            <ol className="category-bars">
-              {report.income_sources.map((source) => (
-                <li key={source.name}>
-                  <div className="category-bar__label">
-                    <strong>{source.name}</strong>
-                    <span>
-                      {formatMoney(source.amount, currency)} ·{" "}
-                      {Number(source.percentage).toLocaleString("es-UY", {
-                        maximumFractionDigits: 1,
-                      })}
-                      %
-                    </span>
-                  </div>
-                  <span className="category-bar__track">
-                    <span style={{ width: `${source.percentage}%` }} />
-                  </span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="muted">No registraste ingresos en este período.</p>
-          )}
-        </section>
         <aside className="dashboard-side">
+          <section className="panel income-sources-panel">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Ingresos del período</p>
+                <h2>Origen de ingresos</h2>
+              </div>
+            </div>
+            {report.income_sources?.length ? (
+              <ol className="category-bars">
+                {report.income_sources.map((source) => (
+                  <li key={source.name}>
+                    <div className="category-bar__label">
+                      <strong>{source.name}</strong>
+                      <span>
+                        {formatMoney(source.amount, currency)} ·{" "}
+                        {Number(source.percentage).toLocaleString("es-UY", {
+                          maximumFractionDigits: 1,
+                        })}
+                        %
+                      </span>
+                    </div>
+                    <span className="category-bar__track">
+                      <span style={{ width: `${source.percentage}%` }} />
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="muted">No registraste ingresos en este período.</p>
+            )}
+          </section>
           <section className="panel budget-panel">
             <p className="eyebrow">Presupuesto mensual · {currency}</p>
             <h2>

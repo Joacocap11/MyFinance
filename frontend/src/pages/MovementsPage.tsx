@@ -42,6 +42,7 @@ import {
   formatDate,
   formatMoney,
   kindLabels,
+  sortCategories,
 } from "../lib/format";
 import { useRequest } from "../lib/useRequest";
 
@@ -402,7 +403,7 @@ function FilterPanel({
           onChange={(event) => setParam("category_id", event.target.value)}
         >
           <option value="">Todas</option>
-          {categories
+          {sortCategories(categories)
             .filter((item) => item.is_active)
             .map((category) => (
               <option key={category.id} value={category.id}>
@@ -628,7 +629,7 @@ function MovementDetail({
                   defaultValue={movement.category_id ?? ""}
                 >
                   <option value="">Sin categoría</option>
-                  {categories
+                  {sortCategories(categories)
                     .filter((item) => item.kind === editKind && item.is_active)
                     .map((item) => (
                       <option key={item.id} value={item.id}>

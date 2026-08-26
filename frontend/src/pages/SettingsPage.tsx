@@ -36,7 +36,7 @@ import {
   StatusPill,
 } from "../components/ui";
 import { formText, parseMoney } from "../lib/form";
-import { categoryPath, formatMoney } from "../lib/format";
+import { categoryPath, formatMoney, sortCategories } from "../lib/format";
 import { useRequest } from "../lib/useRequest";
 
 type SettingsSection =
@@ -415,7 +415,7 @@ function CategoriesSettings() {
     }
   };
   const selectedKind = editing === "new" ? newKind : editing?.kind;
-  const categories = state.data ?? [];
+  const categories = sortCategories(state.data ?? []);
   return (
     <>
       <SettingsHeading
@@ -628,7 +628,7 @@ function RulesSettings() {
               defaultValue={editing === "new" ? "" : editing.category_id}
             >
               <option value="">Elegí una categoría</option>
-              {ruleData.categories
+              {sortCategories(ruleData.categories)
                 .filter((item) => item.is_active)
                 .map((item) => (
                   <option key={item.id} value={item.id}>
@@ -637,10 +637,7 @@ function RulesSettings() {
                 ))}
             </Select>
           </Field>
-          <Field
-            label="Prioridad"
-            hint="Los números más bajos se prueban primero."
-          >
+          <Field label="Prioridad">
             <Input
               name="priority"
               type="number"
@@ -820,7 +817,7 @@ function RecurringSettings() {
               defaultValue={editing === "new" ? "" : editing.category_id}
             >
               <option value="">Elegí una categoría</option>
-              {recurringData.categories
+              {sortCategories(recurringData.categories)
                 .filter((item) => item.is_active && item.kind === "expense")
                 .map((item) => (
                   <option key={item.id} value={item.id}>
@@ -831,7 +828,6 @@ function RecurringSettings() {
           </Field>
           <Field label="Día del mes">
             <Input
-              name="day_of_month"
               required
               type="number"
               min="1"
