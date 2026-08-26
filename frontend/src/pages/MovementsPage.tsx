@@ -117,7 +117,7 @@ export function MovementsPage() {
     const next = new URLSearchParams(search);
     if (value) next.set(key, value);
     else next.delete(key);
-    if (key !== "page") next.delete("page");
+    if (key !== "page" && key !== "selected") next.delete("page");
     setSearch(next, { replace });
   };
   const clearFilters = () => {

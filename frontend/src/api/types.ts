@@ -109,6 +109,11 @@ export interface MonthlyReport {
   expenses: string;
   net: string;
   savings?: string;
+  income_sources?: Array<{
+    name: string;
+    amount: string;
+    percentage: string | number;
+  }>;
   spent_percentage: string | number | null;
   budget: string | null;
   comparison: ReportComparison | null;

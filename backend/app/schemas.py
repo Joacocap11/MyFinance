@@ -259,6 +259,12 @@ class Insight(BaseModel):
     transaction_ids: list[int] = Field(default_factory=list)
 
 
+class IncomeSource(BaseModel):
+    name: str
+    amount: Decimal
+    percentage: Decimal
+
+
 class MonthlyReport(BaseModel):
     month: str
     currency: Currency
@@ -270,6 +276,7 @@ class MonthlyReport(BaseModel):
     comparison: Comparison
     budget: Decimal | None
     categories: list[CategorySummary]
+    income_sources: list[IncomeSource]
     top_expenses: list[TransactionOut]
     recent_transactions: list[TransactionOut]
     insights: list[Insight]

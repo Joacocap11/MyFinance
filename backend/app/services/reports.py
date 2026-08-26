@@ -71,6 +71,22 @@ def monthly_report(db: Session, month: str, currency: models.Currency) -> schema
     )
     expense_rows = [row for row in rows if row.kind == models.TransactionKind.EXPENSE]
     expenses = money(sum((row.amount for row in expense_rows), ZERO))
+    income_sources_totals: dict[str, Decimal] = {}
+    for row in rows:
+        if row.kind == models.TransactionKind.INCOME:
+            source = top_category(db, row.category_id)
+            name = source.name if source else "Sin categoría"
+            income_sources_totals[name] = income_sources_totals.get(name, ZERO) + row.amount
+    income_sources = [
+        schemas.IncomeSource(
+            name=name,
+            amount=money(amount),
+            percentage=percentage(amount, income) or ZERO,
+        )
+        for name, amount in sorted(
+            income_sources_totals.items(), key=lambda item: item[1], reverse=True
+        )
+    ]
 
     start, _ = month_bounds(month)
     previous = shift_month(start, -1).strftime("%Y-%m")
@@ -173,6 +189,7 @@ def monthly_report(db: Session, month: str, currency: models.Currency) -> schema
         ),
         budget=budget,
         categories=categories,
+        income_sources=income_sources,
         top_expenses=[schemas.TransactionOut.model_validate(row) for row in top_expenses],
         recent_transactions=[schemas.TransactionOut.model_validate(row) for row in recent],
         insights=insights[:3],
