@@ -202,7 +202,10 @@ def void_transaction(db: Session, transaction: models.Transaction) -> models.Tra
     return transaction
 
 
-def account_balance(db: Session, account: models.Account) -> Decimal:
+def account_balance(
+    db: Session, account: models.Account, as_of: date | None = None
+) -> Decimal:
+    as_of = as_of or date.today()
     incoming = case(
         (
             (models.Transaction.kind == models.TransactionKind.INCOME)
@@ -232,16 +235,27 @@ def account_balance(db: Session, account: models.Account) -> Decimal:
     movement = db.scalar(
         select(func.coalesce(func.sum(incoming - outgoing), 0)).where(
             models.Transaction.voided_at.is_(None),
+            models.Transaction.date <= as_of,
             or_(
                 models.Transaction.account_id == account.id,
                 models.Transaction.destination_account_id == account.id,
             ),
         )
     )
-    return account.opening_balance + Decimal(movement or 0)
-
+    adjustments = db.scalar(
+        select(func.coalesce(func.sum(models.BalanceAdjustment.amount), 0)).where(
+            models.BalanceAdjustment.account_id == account.id,
+            models.BalanceAdjustment.date <= as_of,
+        )
+    )
+    return account.opening_balance + Decimal(movement or 0) + Decimal(adjustments or 0)
 
 def account_out(db: Session, account: models.Account) -> schemas.AccountOut:
+    adjustments = db.scalars(
+        select(models.BalanceAdjustment)
+        .where(models.BalanceAdjustment.account_id == account.id)
+        .order_by(models.BalanceAdjustment.date.desc(), models.BalanceAdjustment.id.desc())
+    ).all()
     return schemas.AccountOut(
         id=account.id,
         name=account.name,
@@ -249,4 +263,8 @@ def account_out(db: Session, account: models.Account) -> schemas.AccountOut:
         opening_balance=account.opening_balance,
         current_balance=account_balance(db, account),
         is_active=account.is_active,
+        adjustments=[schemas.BalanceAdjustmentOut.model_validate(item) for item in adjustments],
     )
+
+
+ 

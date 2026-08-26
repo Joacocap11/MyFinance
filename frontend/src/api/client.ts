@@ -1,6 +1,7 @@
 import type {
   Account,
   ApiErrorBody,
+  BalanceAdjustment,
   Category,
   CategoryRule,
   Currency,
@@ -122,10 +123,26 @@ export const api = {
       }),
     updateAccount: (
       id: number,
-      input: Partial<Pick<Account, "name" | "is_active">>,
+      input: Partial<Pick<Account, "name" | "is_active" | "current_balance">>,
     ) =>
       request<Account>(`/settings/accounts/${id}`, {
         method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    deleteAccount: (id: number) =>
+      request<void>(`/settings/accounts/${id}`, { method: "DELETE" }),
+    reconcileAccount: (
+      id: number,
+      input: { actual_balance: string; date: string; note: string },
+    ) =>
+      request<{
+        account: Account;
+        calculated_balance: string;
+        actual_balance: string;
+        adjustment: BalanceAdjustment | null;
+        already_reconciled: boolean;
+      }>(`/settings/accounts/${id}/reconcile`, {
+        method: "POST",
         body: JSON.stringify(input),
       }),
     categories: () => request<Category[]>("/settings/categories"),

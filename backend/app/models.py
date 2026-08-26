@@ -81,6 +81,24 @@ class Account(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class BalanceAdjustment(TimestampMixin, Base):
+    __tablename__ = "balance_adjustments"
+    __table_args__ = (
+        CheckConstraint(
+            "amount >= -99999999999.99 AND amount <= 99999999999.99",
+            name="ck_balance_adjustments_amount",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    note: Mapped[str] = mapped_column(String(240))
+
+    account: Mapped[Account] = relationship()
+
+
 class Category(TimestampMixin, Base):
     __tablename__ = "categories"
     __table_args__ = (

@@ -1,6 +1,15 @@
 export type Currency = "UYU" | "USD";
-export type MovementKind = "expense" | "income" | "transfer";
-export type CategoryKind = Exclude<MovementKind, "transfer">;
+export type CategoryKind = "income" | "expense";
+export type MovementKind = "income" | "expense" | "transfer";
+
+export interface BalanceAdjustment {
+  id: number;
+  account_id: number;
+  date: string;
+  amount: string;
+  note: string;
+  created_at: string;
+}
 
 export interface Account {
   id: number;
@@ -9,6 +18,7 @@ export interface Account {
   opening_balance: string;
   current_balance: string;
   is_active: boolean;
+  adjustments?: BalanceAdjustment[];
 }
 
 export interface Category {

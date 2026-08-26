@@ -62,6 +62,22 @@ class AccountPatch(BaseModel):
     is_active: bool | None = None
 
 
+class BalanceAdjustmentCreate(BaseModel):
+    actual_balance: SignedMoney
+    date: Date = Field(default_factory=Date.today)
+    note: str = Field(
+        default="Conciliación con saldo bancario", min_length=1, max_length=240
+    )
+
+
+class BalanceAdjustmentOut(ORMModel):
+    id: int
+    account_id: int
+    date: Date
+    amount: Decimal
+    note: str
+    created_at: datetime
+
 class AccountOut(ORMModel):
     id: int
     name: str
@@ -69,6 +85,14 @@ class AccountOut(ORMModel):
     opening_balance: Decimal
     current_balance: Decimal
     is_active: bool
+    adjustments: list[BalanceAdjustmentOut] = Field(default_factory=list)
+
+class ReconciliationOut(BaseModel):
+    account: AccountOut
+    calculated_balance: Decimal
+    actual_balance: Decimal
+    adjustment: BalanceAdjustmentOut | None
+    already_reconciled: bool
 
 
 class CategoryCreate(BaseModel):

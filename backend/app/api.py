@@ -152,6 +152,72 @@ def patch_account(account_id: int, data: schemas.AccountPatch, db: Db) -> schema
     return domain.account_out(db, account)
 
 
+@router.post(
+    "/settings/accounts/{account_id}/reconcile",
+    response_model=schemas.ReconciliationOut,
+)
+def reconcile_account(
+    account_id: int, data: schemas.BalanceAdjustmentCreate, db: Db
+) -> schemas.ReconciliationOut:
+    account = domain.get_or_404(db, models.Account, account_id)
+    calculated = domain.account_balance(db, account)
+    adjustment = data.actual_balance - calculated
+    item: models.BalanceAdjustment | None = None
+    if adjustment != 0:
+        item = models.BalanceAdjustment(
+            account_id=account.id,
+            date=data.date,
+            amount=adjustment,
+            note=data.note,
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+    return schemas.ReconciliationOut(
+        account=domain.account_out(db, account),
+        calculated_balance=calculated,
+        actual_balance=data.actual_balance,
+        adjustment=schemas.BalanceAdjustmentOut.model_validate(item) if item else None,
+        already_reconciled=adjustment == 0,
+    )
+
+
+@router.delete("/settings/accounts/{account_id}", status_code=204)
+def delete_account(account_id: int, db: Db) -> None:
+    account = domain.get_or_404(db, models.Account, account_id)
+    has_transactions = db.scalar(
+        select(models.Transaction.id).where(
+            or_(
+                models.Transaction.account_id == account_id,
+                models.Transaction.destination_account_id == account_id,
+            )
+        ).limit(1)
+    )
+    has_recurring = db.scalar(
+        select(models.RecurringExpense.id)
+        .where(models.RecurringExpense.account_id == account_id)
+        .limit(1)
+    )
+    has_imports = db.scalar(
+        select(models.ImportBatch.id)
+        .where(models.ImportBatch.account_id == account_id)
+        .limit(1)
+    )
+    has_adjustments = db.scalar(
+        select(models.BalanceAdjustment.id)
+        .where(models.BalanceAdjustment.account_id == account_id)
+        .limit(1)
+    )
+    if has_transactions or has_recurring or has_imports or has_adjustments:
+        raise domain.DomainError(
+            "No se puede eliminar una cuenta con movimientos o configuraciones asociadas. "
+            "Podés archivarla para conservar el historial.",
+            409,
+        )
+    db.delete(account)
+    db.commit()
+
+
 @router.get("/settings/categories", response_model=list[schemas.CategoryOut])
 def list_categories(db: Db, kind: models.TransactionKind | None = None) -> list[models.Category]:
     query = select(models.Category)

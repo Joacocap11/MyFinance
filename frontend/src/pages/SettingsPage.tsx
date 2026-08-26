@@ -8,6 +8,7 @@ import {
   Pencil,
   Plus,
   Tags,
+  Trash2,
   WalletCards,
 } from "lucide-react";
 import { useState } from "react";
@@ -123,6 +124,7 @@ function SettingsHeading({
 function AccountsSettings() {
   const state = useRequest(() => api.settings.accounts(), []);
   const [editing, setEditing] = useState<Account | "new" | null>(null);
+  const [reconciling, setReconciling] = useState<Account | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -150,6 +152,36 @@ function AccountsSettings() {
       setSaving(false);
     }
   };
+  const reconcile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!reconciling) return;
+    const data = new FormData(event.currentTarget);
+    const actual = formText(data, "actual_balance").replace(",", ".");
+    const difference = decimalDifference(actual, reconciling.current_balance);
+    if (
+      !window.confirm(
+        `Saldo actual en MyFinance: ${formatMoney(reconciling.current_balance, reconciling.currency)}\n` +
+          `Nuevo saldo real: ${formatMoney(actual, reconciling.currency)}\n` +
+          `Ajuste que se registrará: ${formatMoney(String(difference), reconciling.currency)}`,
+      )
+    )
+      return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.settings.reconcileAccount(reconciling.id, {
+        actual_balance: actual,
+        date: formText(data, "date"),
+        note: formText(data, "note"),
+      });
+      setReconciling(null);
+      state.retry();
+    } catch (reason) {
+      setError(messageOf(reason));
+    } finally {
+      setSaving(false);
+    }
+  };
   const archive = async (account: Account) => {
     if (
       !window.confirm(
@@ -166,6 +198,22 @@ function AccountsSettings() {
       setError(messageOf(reason));
     }
   };
+  const remove = async (account: Account) => {
+    if (
+      !window.confirm(
+        `¿Eliminar “${account.name}”? Solo se puede eliminar si no tiene movimientos ni configuraciones asociadas.`,
+      )
+    )
+      return;
+    try {
+      await api.settings.deleteAccount(account.id);
+      if (editing && editing !== "new" && editing.id === account.id)
+        setEditing(null);
+      state.retry();
+    } catch (reason) {
+      setError(messageOf(reason));
+    }
+  };
   return (
     <>
       <SettingsHeading
@@ -177,6 +225,37 @@ function AccountsSettings() {
           </Button>
         }
       />
+      {reconciling ? (
+        <form className="settings-form" onSubmit={(event) => void reconcile(event)}>
+          <h3>Conciliar saldo · {reconciling.name}</h3>
+          <p className="notice">
+            Saldo calculado por MyFinance:{" "}
+            {formatMoney(reconciling.current_balance, reconciling.currency)}
+          </p>
+          <Field label="Saldo real">
+            <Input
+              name="actual_balance"
+              required
+              autoFocus
+              inputMode="decimal"
+              defaultValue={reconciling.current_balance}
+              pattern="^-?\d+(?:[.,]\d{1,2})?$"
+            />
+          </Field>
+          <Field label="Fecha del ajuste">
+            <Input
+              name="date"
+              type="date"
+              required
+              defaultValue={new Date().toISOString().slice(0, 10)}
+            />
+          </Field>
+          <Field label="Nota">
+            <Input name="note" required defaultValue="Conciliación con saldo bancario" maxLength={240} />
+          </Field>
+          <FormActions saving={saving} cancel={() => setReconciling(null)} />
+        </form>
+      ) : null}
       {error ? <ErrorState compact message={error} /> : null}
       {editing ? (
         <form className="settings-form" onSubmit={(event) => void save(event)}>
@@ -213,15 +292,12 @@ function AccountsSettings() {
           ) : (
             <p className="notice">
               La moneda {editing.currency} y el saldo inicial no se editan una
-              vez creada la cuenta.
+              vez creada la cuenta. Usá “Conciliar saldo” para corregir el
+              saldo actual de forma auditable.
             </p>
           )}
           <FormActions saving={saving} cancel={() => setEditing(null)} />
         </form>
-      ) : null}
-      {state.loading ? <LoadingState rows={4} /> : null}
-      {state.error && !state.data ? (
-        <ErrorState message={state.error} onRetry={state.retry} />
       ) : null}
       {state.data ? (
         state.data.length ? (
@@ -240,6 +316,15 @@ function AccountsSettings() {
                     {account.currency} · Saldo actual{" "}
                     {formatMoney(account.current_balance, account.currency)}
                   </span>
+                {account.adjustments?.[0] ? (
+                  <small>
+                    Última conciliación: {account.adjustments?.[0]?.date} ·{" "}
+                    {formatMoney(
+                      account.adjustments?.[0]?.amount ?? "0",
+                      account.currency,
+                    )}
+                  </small>
+                ) : null}
                 </div>
                 <StatusPill tone={account.is_active ? "success" : "neutral"}>
                   {account.is_active ? "Activa" : "Archivada"}
@@ -247,6 +332,15 @@ function AccountsSettings() {
                 <div className="row-actions">
                   <Button variant="quiet" onClick={() => setEditing(account)}>
                     <Pencil size={16} /> Editar
+                  </Button>
+                  <Button variant="danger" onClick={() => void remove(account)}>
+                    <Trash2 size={16} /> Eliminar
+                  </Button>
+                  <Button
+                    variant="quiet"
+                    onClick={() => setReconciling(account)}
+                  >
+                    Conciliar saldo
                   </Button>
                   <Button variant="quiet" onClick={() => void archive(account)}>
                     <Archive size={16} />{" "}
@@ -923,6 +1017,22 @@ function messageOf(reason: unknown): string {
     ? reason.message
     : "No se pudo guardar el cambio";
 }
+
+function decimalDifference(left: string, right: string): string {
+  const cents = (value: string) => {
+    const negative = value.startsWith("-");
+    const [whole, fraction = ""] = value.replace("-", "").split(".");
+    const result =
+      Number(whole) * 100 + Number((fraction + "00").slice(0, 2));
+    return negative ? -result : result;
+  };
+  const result = cents(left) - cents(right);
+  return `${result < 0 ? "-" : ""}${Math.floor(Math.abs(result) / 100)}.${String(
+    Math.abs(result) % 100,
+  ).padStart(2, "0")}`;
+}
+
+ 
 
 function nextPriority(rules: CategoryRule[]): number {
   return rules.length
