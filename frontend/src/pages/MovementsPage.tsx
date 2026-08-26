@@ -571,7 +571,7 @@ function MovementDetail({
                 inputMode="decimal"
                 defaultValue={movement.amount}
                 required
-                pattern="^\\d+(?:[.,]\\d{1,2})?$"
+                pattern="^\d+(?:[.,]\d{1,2})?$"
               />
             </Field>
             {editKind === "transfer" ? (
@@ -596,7 +596,7 @@ function MovementDetail({
                     inputMode="decimal"
                     defaultValue={destinationAmount}
                     required
-                    pattern="^\\d+(?:[.,]\\d{1,2})?$"
+                    pattern="^\d+(?:[.,]\d{1,2})?$"
                   />
                 </Field>
                 <Field label="Propósito">
