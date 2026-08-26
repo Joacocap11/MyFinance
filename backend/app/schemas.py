@@ -168,6 +168,7 @@ class TransactionOut(ORMModel):
     description: str
     notes: str | None
     account_id: int
+    category_source: str | None
     destination_account_id: int | None
     category_id: int | None
     is_voided: bool
@@ -179,6 +180,20 @@ class TransactionList(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class CategorizationSuggestion(BaseModel):
+    transaction_id: int
+    description: str
+    category_id: int
+    category_name: str
+    confidence: str
+
+
+class CategorizationPreview(BaseModel):
+    pending: int
+    high_confidence: int
+    suggestions: list[CategorizationSuggestion]
 
 
 class RecurringCreate(BaseModel):

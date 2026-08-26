@@ -155,6 +155,7 @@ class Transaction(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
     destination_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"))
+    category_source: Mapped[str | None] = mapped_column(String(20))
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), index=True)
     voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     origin_key: Mapped[str | None] = mapped_column(String(80), unique=True)

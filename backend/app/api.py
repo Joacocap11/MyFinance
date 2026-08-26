@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.config import get_settings
 from app.db import get_db
-from app.services import domain, imports, reports
+from app.services import autocategorization, domain, imports, reports
 
 Db = Annotated[Session, Depends(get_db)]
 router = APIRouter(prefix="/api/v1")
@@ -114,6 +114,41 @@ def monthly_report(
     month: schemas.Month, currency: models.Currency, db: Db
 ) -> schemas.MonthlyReport:
     return reports.monthly_report(db, month, currency)
+
+
+@router.get("/settings/categorization/preview", response_model=schemas.CategorizationPreview)
+def categorization_preview(db: Db) -> schemas.CategorizationPreview:
+    pending = db.scalar(
+        select(func.count()).select_from(models.Transaction).where(
+            models.Transaction.category_id.is_(None),
+        )
+    ) or 0
+    items = autocategorization.suggestions(db)
+    suggestions = []
+    for item in items:
+        category = db.get(models.Category, item.category_id)
+        if category is None:
+            continue
+        suggestions.append(
+            schemas.CategorizationSuggestion(
+                transaction_id=item.transaction.id,
+                description=item.transaction.description,
+                category_id=item.category_id,
+                category_name=category.name,
+                confidence=item.confidence,
+            )
+        )
+    return schemas.CategorizationPreview(
+        pending=pending,
+        high_confidence=len(suggestions),
+        suggestions=suggestions,
+    )
+
+
+@router.post("/settings/categorization/apply", response_model=schemas.CategorizationPreview)
+def categorization_apply(db: Db) -> schemas.CategorizationPreview:
+    autocategorization.apply_high_confidence(db)
+    return categorization_preview(db)
 
 
 @router.get("/reports/history", response_model=schemas.HistoryReport)
