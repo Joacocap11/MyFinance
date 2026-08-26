@@ -165,3 +165,34 @@ def test_cross_site_origin_cannot_void_a_transaction(
 
     assert response.status_code == 403
     assert client.get(f"/api/v1/transactions/{transaction_id}").json()["is_voided"] is False
+
+
+def test_cross_currency_transfer_uses_received_amount(
+    client: TestClient, account: models.Account, db: Session
+) -> None:
+    usd = models.Account(name="USD", currency=models.Currency.USD, opening_balance="500.00")
+    db.add(usd)
+    db.commit()
+    db.refresh(usd)
+
+    response = client.post(
+        "/api/v1/transactions",
+        json=payload(
+            account.id,
+            kind="transfer",
+            amount="10000.00",
+            destination_account_id=usd.id,
+            destination_amount="245.00",
+            purpose="savings",
+            category_id=None,
+        ),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["destination_amount"] == "245.00"
+    accounts = {
+        item["currency"]: item
+        for item in client.get("/api/v1/settings/accounts").json()
+    }
+    assert accounts["UYU"]["current_balance"] == "-9900.00"
+    assert accounts["USD"]["current_balance"] == "745.00"

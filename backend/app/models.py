@@ -30,12 +30,18 @@ MONEY_MAX = Decimal("99999999999.99")
 class Currency(enum.StrEnum):
     UYU = "UYU"
     USD = "USD"
-
+    UI = "UI"
 
 class TransactionKind(enum.StrEnum):
     INCOME = "income"
     EXPENSE = "expense"
     TRANSFER = "transfer"
+
+
+class TransferPurpose(enum.StrEnum):
+    REGULAR = "regular"
+    SAVINGS = "savings"
+    INVESTMENT = "investment"
 
 
 class ImportState(enum.StrEnum):
@@ -121,8 +127,10 @@ class Transaction(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("amount > 0 AND amount <= 99999999999.99", name="ck_transactions_amount"),
         CheckConstraint(
-            "(kind = 'transfer' AND destination_account_id IS NOT NULL AND category_id IS NULL) "
-            "OR (kind IN ('income', 'expense') AND destination_account_id IS NULL)",
+            "(kind = 'transfer' AND destination_account_id IS NOT NULL "
+            "AND category_id IS NULL) "
+            "OR (kind IN ('income', 'expense') AND destination_account_id IS NULL "
+            "AND destination_amount IS NULL)",
             name="ck_transactions_shape",
         ),
         CheckConstraint(
@@ -140,6 +148,10 @@ class Transaction(TimestampMixin, Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     description: Mapped[str] = mapped_column(String(240))
+    destination_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    purpose: Mapped[TransferPurpose | None] = mapped_column(
+        Enum(TransferPurpose, native_enum=False, length=10, values_callable=enum_values)
+    )
     notes: Mapped[str | None] = mapped_column(Text)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
     destination_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"))

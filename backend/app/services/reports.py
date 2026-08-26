@@ -154,6 +154,17 @@ def monthly_report(db: Session, month: str, currency: models.Currency) -> schema
         income=income,
         expenses=expenses,
         net=money(income - expenses),
+        savings=money(
+            sum(
+                (
+                    row.amount
+                    for row in rows
+                    if row.kind == models.TransactionKind.TRANSFER
+                    and row.purpose == models.TransferPurpose.SAVINGS
+                ),
+                ZERO,
+            )
+        ),
         spent_percentage=percentage(expenses, budget) if budget is not None else None,
         comparison=schemas.Comparison(
             previous_month=previous,

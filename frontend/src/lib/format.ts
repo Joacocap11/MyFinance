@@ -17,6 +17,10 @@ const moneyFormatters: Record<Currency, Intl.NumberFormat> = {
     currency: "USD",
     minimumFractionDigits: 2,
   }),
+  UI: new Intl.NumberFormat("es-UY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
 };
 
 export function formatMoney(

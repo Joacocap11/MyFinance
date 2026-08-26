@@ -76,7 +76,7 @@ describe("NewMovementPage", () => {
     expect(screen.getByLabelText("Categoría")).toHaveValue("8");
   });
 
-  it("impide transferir entre cuentas de monedas distintas", async () => {
+  it("permite transferir entre monedas con monto recibido", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -116,12 +116,10 @@ describe("NewMovementPage", () => {
     await screen.findByText("Nuevo movimiento");
     await user.click(screen.getByRole("button", { name: "Transferencia" }));
 
-    expect(screen.getByLabelText(/^Cuenta de destino/)).toBeDisabled();
-    expect(
-      screen.getByText("No hay otra cuenta activa en UYU."),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Cuenta de destino/)).not.toBeDisabled();
+    expect(screen.getByLabelText(/^Monto recibido/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Guardar transferencia" }),
-    ).toBeDisabled();
+    ).not.toBeDisabled();
   });
 });

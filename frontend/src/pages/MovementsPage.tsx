@@ -21,6 +21,7 @@ import type {
   MovementFilters,
   MovementKind,
   Page,
+  TransferPurpose,
 } from "../api/types";
 import { MovementRow } from "../components/MovementRow";
 import {
@@ -35,7 +36,7 @@ import {
   Select,
   StatusPill,
 } from "../components/ui";
-import { formText } from "../lib/form";
+import { formText, parseMoney } from "../lib/form";
 import {
   categoryPath,
   formatDate,
@@ -67,7 +68,9 @@ export function MovementsPage() {
           ? "USD"
           : search.get("currency") === "UYU"
             ? "UYU"
-            : undefined,
+            : search.get("currency") === "UI"
+              ? "UI"
+              : undefined,
       date_from: search.get("date_from") || undefined,
       date_to: search.get("date_to") || undefined,
       kind: (search.get("kind") as MovementKind | null) || undefined,
@@ -327,7 +330,9 @@ function FilterPanel({
       ? "USD"
       : search.get("currency") === "UYU"
         ? "UYU"
-        : "";
+        : search.get("currency") === "UI"
+          ? "UI"
+          : "";
   const visibleAccounts = selectedCurrency
     ? accounts.filter((item) => item.currency === selectedCurrency)
     : accounts;
@@ -456,9 +461,19 @@ function MovementDetail({
   onChanged: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [editKind, setEditKind] = useState<MovementKind>(movement.kind);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [destinationAmount] = useState(
+    movement.destination_amount ?? movement.amount,
+  );
+  const [purpose, setPurpose] = useState<TransferPurpose>(
+    movement.purpose ?? "regular",
+  );
   const account = accounts.find((item) => item.id === movement.account_id);
+  const destinations = accounts.filter(
+    (item) => item.is_active && item.id !== movement.account_id,
+  );
   const category = categories.find((item) => item.id === movement.category_id);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -467,12 +482,22 @@ function MovementDetail({
     const values = new FormData(event.currentTarget);
     try {
       await api.movements.update(movement.id, {
+        kind: editKind,
         description: formText(values, "description"),
-        amount: formText(values, "amount"),
+        amount: parseMoney(formText(values, "amount")),
+        destination_amount:
+          editKind === "transfer"
+            ? parseMoney(formText(values, "destination_amount"))
+            : null,
+        purpose: editKind === "transfer" ? purpose : null,
+        destination_account_id:
+          editKind === "transfer"
+            ? Number(formText(values, "destination_account_id"))
+            : null,
         date: formText(values, "date"),
         notes: formText(values, "notes") || null,
         category_id:
-          movement.kind === "transfer"
+          editKind === "transfer"
             ? null
             : Number(formText(values, "category_id")) || null,
       });
@@ -520,6 +545,17 @@ function MovementDetail({
         </header>
         {editing ? (
           <form onSubmit={(event) => void submit(event)} className="form-stack">
+            <Field label="Tipo">
+              <Select
+                name="kind"
+                value={editKind}
+                onChange={(event) => setEditKind(event.target.value as MovementKind)}
+              >
+                <option value="expense">Gasto</option>
+                <option value="income">Ingreso</option>
+                <option value="transfer">Transferencia</option>
+              </Select>
+            </Field>
             <Field label="Descripción">
               <Input
                 name="description"
@@ -536,6 +572,45 @@ function MovementDetail({
                 pattern="^\\d+(?:[.,]\\d{1,2})?$"
               />
             </Field>
+            {editKind === "transfer" ? (
+              <>
+                <Field label="Cuenta de destino">
+                  <Select
+                    name="destination_account_id"
+                    defaultValue={movement.destination_account_id ?? ""}
+                    required
+                  >
+                    <option value="">Elegí una cuenta</option>
+                    {destinations.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · {item.currency}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Monto recibido">
+                  <Input
+                    name="destination_amount"
+                    inputMode="decimal"
+                    defaultValue={destinationAmount}
+                    required
+                    pattern="^\\d+(?:[.,]\\d{1,2})?$"
+                  />
+                </Field>
+                <Field label="Propósito">
+                  <Select
+                    value={purpose}
+                    onChange={(event) =>
+                      setPurpose(event.target.value as TransferPurpose)
+                    }
+                  >
+                    <option value="regular">Transferencia</option>
+                    <option value="savings">Ahorro</option>
+                    <option value="investment">Inversión</option>
+                  </Select>
+                </Field>
+              </>
+            ) : null}
             <Field label="Fecha">
               <Input
                 name="date"
@@ -544,7 +619,7 @@ function MovementDetail({
                 required
               />
             </Field>
-            {movement.kind !== "transfer" ? (
+            {editKind !== "transfer" ? (
               <Field label="Categoría">
                 <Select
                   name="category_id"
@@ -553,7 +628,7 @@ function MovementDetail({
                   <option value="">Sin categoría</option>
                   {categories
                     .filter(
-                      (item) => item.kind === movement.kind && item.is_active,
+                      (item) => item.kind === editKind && item.is_active,
                     )
                     .map((item) => (
                       <option key={item.id} value={item.id}>

@@ -110,7 +110,9 @@ def validate_transaction_values(
     *,
     kind: models.TransactionKind,
     account_id: int,
+    amount: Decimal,
     destination_account_id: int | None,
+    destination_amount: Decimal | None,
     category_id: int | None,
 ) -> int | None:
     account = db.get(models.Account, account_id)
@@ -124,28 +126,38 @@ def validate_transaction_values(
         destination = db.get(models.Account, destination_account_id)
         if destination is None or not destination.is_active:
             raise DomainError("La cuenta de destino no existe o está inactiva")
-        if destination.currency != account.currency:
-            raise DomainError("Las transferencias requieren cuentas de la misma moneda")
+        if destination_amount is None:
+            if destination.currency != account.currency:
+                raise DomainError("Las monedas distintas requieren monto recibido")
+        elif destination.currency == account.currency and destination_amount != amount:
+            raise DomainError("En la misma moneda el monto recibido debe coincidir con el origen")
         return None
-    if destination_account_id is not None:
-        raise DomainError("Solo una transferencia admite cuenta destino")
+    if destination_account_id is not None or destination_amount is not None:
+        raise DomainError("Solo una transferencia admite cuenta destino y monto recibido")
     validate_category(db, category_id, kind)
     return category_id
-
-
 def create_transaction(db: Session, data: schemas.TransactionCreate) -> models.Transaction:
     category_id = data.category_id
     if category_id is None and data.kind != models.TransactionKind.TRANSFER:
         category_id = match_rule(db, data.description, data.kind)
+    destination_amount = data.destination_amount
+    if data.kind == models.TransactionKind.TRANSFER and destination_amount is None:
+        source = db.get(models.Account, data.account_id)
+        destination = db.get(models.Account, data.destination_account_id)
+        if source and destination and source.currency == destination.currency:
+            destination_amount = data.amount
     validate_transaction_values(
         db,
         kind=data.kind,
         account_id=data.account_id,
+        amount=data.amount,
         destination_account_id=data.destination_account_id,
+        destination_amount=destination_amount,
         category_id=category_id,
     )
     transaction = models.Transaction(
-        **data.model_dump(exclude={"category_id"}),
+        **data.model_dump(exclude={"category_id", "destination_amount"}),
+        destination_amount=destination_amount,
         category_id=category_id,
         semantic_fingerprint=semantic_fingerprint(
             account_id=data.account_id,
@@ -169,15 +181,21 @@ def patch_transaction(
     values = patch.model_dump(exclude_unset=True)
     kind = values.get("kind", transaction.kind)
     account_id = values.get("account_id", transaction.account_id)
+    amount = values.get("amount", transaction.amount)
     destination_account_id = values.get(
         "destination_account_id", transaction.destination_account_id
+    )
+    destination_amount = values.get(
+        "destination_amount", transaction.destination_amount
     )
     category_id = values.get("category_id", transaction.category_id)
     validate_transaction_values(
         db,
         kind=kind,
         account_id=account_id,
+        amount=amount,
         destination_account_id=destination_account_id,
+        destination_amount=destination_amount,
         category_id=category_id,
     )
     for key, value in values.items():
@@ -215,7 +233,7 @@ def account_balance(
         (
             (models.Transaction.kind == models.TransactionKind.TRANSFER)
             & (models.Transaction.destination_account_id == account.id),
-            models.Transaction.amount,
+            func.coalesce(models.Transaction.destination_amount, models.Transaction.amount),
         ),
         else_=Decimal("0"),
     )

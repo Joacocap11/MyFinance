@@ -1,7 +1,7 @@
-export type Currency = "UYU" | "USD";
+export type Currency = "UYU" | "USD" | "UI";
 export type CategoryKind = "income" | "expense";
 export type MovementKind = "income" | "expense" | "transfer";
-
+export type TransferPurpose = "regular" | "savings" | "investment";
 export interface BalanceAdjustment {
   id: number;
   account_id: number;
@@ -34,6 +34,8 @@ export interface Movement {
   date: string;
   kind: MovementKind;
   amount: string;
+  destination_amount?: string | null;
+  purpose?: "regular" | "savings" | "investment" | null;
   description: string;
   notes: string | null;
   account_id: number;
@@ -47,6 +49,8 @@ export interface MovementInput {
   date: string;
   kind: MovementKind;
   amount: string;
+  destination_amount?: string | null;
+  purpose?: "regular" | "savings" | "investment" | null;
   description: string;
   notes?: string | null;
   account_id: number;
@@ -104,6 +108,7 @@ export interface MonthlyReport {
   income: string;
   expenses: string;
   net: string;
+  savings?: string;
   spent_percentage: string | number | null;
   budget: string | null;
   comparison: ReportComparison | null;

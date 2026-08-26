@@ -23,7 +23,12 @@ import { useRequest } from "../lib/useRequest";
 
 export function HistoryPage() {
   const [search, setSearch] = useSearchParams();
-  const currency: Currency = search.get("currency") === "USD" ? "USD" : "UYU";
+  const currency: Currency =
+    search.get("currency") === "USD"
+      ? "USD"
+      : search.get("currency") === "UI"
+        ? "UI"
+        : "UYU";
   const state = useRequest(
     (signal) => api.reports.history(12, currency, signal),
     [currency],
@@ -54,6 +59,7 @@ export function HistoryPage() {
             options={[
               { value: "UYU", label: "UYU" },
               { value: "USD", label: "USD" },
+              { value: "UI", label: "UI" },
             ]}
             onChange={setCurrency}
           />

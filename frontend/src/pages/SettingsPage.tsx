@@ -35,7 +35,7 @@ import {
   Select,
   StatusPill,
 } from "../components/ui";
-import { formText } from "../lib/form";
+import { formText, parseMoney } from "../lib/form";
 import { categoryPath, formatMoney } from "../lib/format";
 import { useRequest } from "../lib/useRequest";
 
@@ -137,7 +137,7 @@ function AccountsSettings() {
         await api.settings.createAccount({
           name: formText(data, "name"),
           currency: formText(data, "currency") as Currency,
-          opening_balance: formText(data, "opening_balance").replace(",", "."),
+          opening_balance: parseMoney(formText(data, "opening_balance")),
           is_active: true,
         });
       else if (editing)
@@ -156,7 +156,7 @@ function AccountsSettings() {
     event.preventDefault();
     if (!reconciling) return;
     const data = new FormData(event.currentTarget);
-    const actual = formText(data, "actual_balance").replace(",", ".");
+    const actual = parseMoney(formText(data, "actual_balance"));
     const difference = decimalDifference(actual, reconciling.current_balance);
     if (
       !window.confirm(
@@ -274,6 +274,7 @@ function AccountsSettings() {
                 <Select name="currency" defaultValue="UYU">
                   <option value="UYU">Pesos uruguayos (UYU)</option>
                   <option value="USD">Dólares estadounidenses (USD)</option>
+                  <option value="UI">Unidades indexadas (UI)</option>
                 </Select>
               </Field>
               <Field
@@ -722,7 +723,7 @@ function RecurringSettings() {
     const data = new FormData(event.currentTarget);
     const input = {
       description: formText(data, "description"),
-      amount: formText(data, "amount").replace(",", "."),
+      amount: parseMoney(formText(data, "amount")),
       day_of_month: Number(formText(data, "day_of_month")),
       account_id: Number(formText(data, "account_id")),
       category_id: Number(formText(data, "category_id")),
@@ -909,7 +910,7 @@ function BudgetSettings() {
       state.setData(
         await api.settings.updateBudget(
           currency,
-          raw ? raw.replace(",", ".") : null,
+          raw ? parseMoney(raw) : null,
         ),
       );
       setSaved(true);
@@ -930,7 +931,7 @@ function BudgetSettings() {
         role="group"
         aria-label="Moneda del presupuesto"
       >
-        {(["UYU", "USD"] as const).map((item) => (
+        {(["UYU", "USD", "UI"] as const).map((item) => (
           <button
             type="button"
             key={item}

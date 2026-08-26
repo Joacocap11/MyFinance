@@ -9,6 +9,7 @@ import type {
   Movement,
   MovementInput,
   MovementKind,
+  TransferPurpose,
 } from "../api/types";
 import {
   Button,
@@ -21,6 +22,7 @@ import {
   Select,
 } from "../components/ui";
 import { categoryPath, formatMoney, kindLabels, today } from "../lib/format";
+import { parseMoney } from "../lib/form";
 import { useRequest } from "../lib/useRequest";
 
 export function NewMovementPage() {
@@ -84,6 +86,8 @@ function MovementForm({
   const [kind, setKind] = useState<MovementKind>("expense");
   const [accountId, setAccountId] = useState(activeAccounts[0]?.id ?? 0);
   const [destinationId, setDestinationId] = useState(0);
+  const [destinationAmount, setDestinationAmount] = useState("");
+  const [purpose, setPurpose] = useState<TransferPurpose>("regular");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState(0);
@@ -94,11 +98,8 @@ function MovementForm({
   const [created, setCreated] = useState<Movement | null>(null);
   const account = activeAccounts.find((item) => item.id === accountId);
   const destinations = useMemo(
-    () =>
-      activeAccounts.filter(
-        (item) => item.id !== accountId && item.currency === account?.currency,
-      ),
-    [account?.currency, accountId, activeAccounts],
+    () => activeAccounts.filter((item) => item.id !== accountId),
+    [accountId, activeAccounts],
   );
   const kindCategories = useMemo(
     () => categories.filter((item) => item.is_active && item.kind === kind),
@@ -112,15 +113,12 @@ function MovementForm({
   };
 
   const selectAccount = (nextAccountId: number) => {
-    const nextAccount = activeAccounts.find(
-      (item) => item.id === nextAccountId,
-    );
     const nextDestination = activeAccounts.find(
-      (item) =>
-        item.id !== nextAccountId && item.currency === nextAccount?.currency,
+      (item) => item.id !== nextAccountId,
     );
     setAccountId(nextAccountId);
     setDestinationId(nextDestination?.id ?? 0);
+    setDestinationAmount("");
   };
 
   if (!activeAccounts.length)
@@ -154,7 +152,14 @@ function MovementForm({
     setSaving(true);
     const input: MovementInput = {
       kind,
-      amount: amount.replace(",", "."),
+      amount: parseMoney(amount),
+      destination_amount:
+        kind === "transfer"
+          ? destinationAmount
+            ? parseMoney(destinationAmount)
+            : parseMoney(amount)
+          : null,
+      purpose: kind === "transfer" ? purpose : null,
       description: description.trim(),
       date,
       account_id: accountId,
@@ -165,11 +170,7 @@ function MovementForm({
     try {
       setCreated(await api.movements.create(input));
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "No se pudo guardar el movimiento",
-      );
+      setError(reason instanceof Error ? reason.message : "No se pudo guardar el movimiento");
     } finally {
       setSaving(false);
     }
@@ -269,6 +270,7 @@ function MovementForm({
         />
       </Field>
       {kind === "transfer" ? (
+        <>
         <Field
           label="Cuenta de destino"
           hint={
@@ -291,6 +293,23 @@ function MovementForm({
             ))}
           </Select>
         </Field>
+        <Field label={`Monto recibido · ${destinations.find((item) => item.id === destinationId)?.currency ?? ""}`}>
+          <Input
+            required
+            inputMode="decimal"
+            placeholder="Igual al origen si comparten moneda"
+            value={destinationAmount}
+            onChange={(event) => setDestinationAmount(event.target.value)}
+          />
+        </Field>
+        <Field label="Propósito">
+          <Select value={purpose} onChange={(event) => setPurpose(event.target.value as TransferPurpose)}>
+            <option value="regular">Transferencia</option>
+            <option value="savings">Ahorro</option>
+            <option value="investment">Inversión</option>
+          </Select>
+        </Field>
+        </>
       ) : (
         <Field label="Categoría">
           <Select

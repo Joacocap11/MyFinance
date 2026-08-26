@@ -23,7 +23,12 @@ export function DashboardPage() {
   const [search, setSearch] = useSearchParams();
   const navigate = useNavigate();
   const month = search.get("month") ?? currentMonth();
-  const currency: Currency = search.get("currency") === "USD" ? "USD" : "UYU";
+  const currency: Currency =
+    search.get("currency") === "USD"
+      ? "USD"
+      : search.get("currency") === "UI"
+        ? "UI"
+        : "UYU";
   const state = useRequest<DashboardData>(
     async (signal) => {
       const [report, accounts, categories] = await Promise.all([
@@ -77,6 +82,7 @@ export function DashboardPage() {
               options={[
                 { value: "UYU", label: "UYU" },
                 { value: "USD", label: "USD" },
+                { value: "UI", label: "UI" },
               ]}
               onChange={(value) => updateScope("currency", value)}
             />
@@ -201,6 +207,10 @@ function DashboardContent({
           >
             {formatMoney(report.net, currency)}
           </strong>
+        </div>
+        <div>
+          <span>Ahorro transferido</span>
+          <strong>{formatMoney(report.savings ?? "0", currency)}</strong>
         </div>
       </section>
 

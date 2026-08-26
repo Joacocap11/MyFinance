@@ -14,7 +14,13 @@ from pydantic import (
     model_validator,
 )
 
-from app.models import Currency, ImportDisposition, ImportState, TransactionKind
+from app.models import (
+    Currency,
+    ImportDisposition,
+    ImportState,
+    TransactionKind,
+    TransferPurpose,
+)
 
 Money = Annotated[Decimal, Field(gt=0, max_digits=13, decimal_places=2)]
 SignedMoney = Annotated[
@@ -112,13 +118,12 @@ class CategoryOut(ORMModel):
     name: str
     kind: TransactionKind
     parent_id: int | None
-    is_active: bool
-
-
 class TransactionBase(BaseModel):
     date: Date
     kind: TransactionKind
     amount: Money
+    destination_amount: Money | None = None
+    purpose: TransferPurpose | None = None
     description: str = Field(min_length=1, max_length=240)
     notes: str | None = None
     account_id: int
@@ -129,9 +134,9 @@ class TransactionBase(BaseModel):
     def valid_shape(self) -> TransactionBase:
         if self.kind == TransactionKind.TRANSFER:
             if self.destination_account_id is None or self.category_id is not None:
-                raise ValueError("Una transferencia requiere cuenta destino y no admite categoría")
-        elif self.destination_account_id is not None:
-            raise ValueError("Solo las transferencias admiten cuenta destino")
+                raise ValueError("Una transferencia requiere cuenta destino")
+        elif self.destination_account_id is not None or self.destination_amount is not None:
+            raise ValueError("Solo las transferencias admiten cuenta destino y monto recibido")
         return self
 
 
@@ -143,6 +148,8 @@ class TransactionPatch(BaseModel):
     date: Date | None = None
     kind: TransactionKind | None = None
     amount: Money | None = None
+    destination_amount: Money | None = None
+    purpose: TransferPurpose | None = None
     description: str | None = Field(None, min_length=1, max_length=240)
     notes: str | None = None
     account_id: int | None = None
@@ -155,6 +162,8 @@ class TransactionOut(ORMModel):
     date: Date
     kind: TransactionKind
     amount: Decimal
+    destination_amount: Decimal | None
+    purpose: TransferPurpose | None
     description: str
     notes: str | None
     account_id: int
@@ -255,6 +264,7 @@ class MonthlyReport(BaseModel):
     income: Decimal
     expenses: Decimal
     net: Decimal
+    savings: Decimal
     spent_percentage: Decimal | None
     comparison: Comparison
     budget: Decimal | None
