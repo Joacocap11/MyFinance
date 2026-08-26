@@ -596,16 +596,16 @@ svg {
   grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
   gap: var(--space-5);
 }
-.dashboard-side {
-  display: grid;
-  gap: var(--space-5);
-}
 .category-bars {
   display: grid;
   gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.category-bars > li {
+  display: grid;
+  gap: var(--space-2);
 }
 .category-bars a {
   display: grid;
@@ -623,6 +623,7 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 .category-bar__track {
+  display: block;
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
