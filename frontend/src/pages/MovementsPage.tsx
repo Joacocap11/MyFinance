@@ -549,7 +549,9 @@ function MovementDetail({
               <Select
                 name="kind"
                 value={editKind}
-                onChange={(event) => setEditKind(event.target.value as MovementKind)}
+                onChange={(event) =>
+                  setEditKind(event.target.value as MovementKind)
+                }
               >
                 <option value="expense">Gasto</option>
                 <option value="income">Ingreso</option>
@@ -627,9 +629,7 @@ function MovementDetail({
                 >
                   <option value="">Sin categoría</option>
                   {categories
-                    .filter(
-                      (item) => item.kind === editKind && item.is_active,
-                    )
+                    .filter((item) => item.kind === editKind && item.is_active)
                     .map((item) => (
                       <option key={item.id} value={item.id}>
                         {categoryPath(item, categories)}

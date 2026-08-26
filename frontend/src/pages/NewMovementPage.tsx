@@ -170,7 +170,11 @@ function MovementForm({
     try {
       setCreated(await api.movements.create(input));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "No se pudo guardar el movimiento");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "No se pudo guardar el movimiento",
+      );
     } finally {
       setSaving(false);
     }
@@ -271,44 +275,51 @@ function MovementForm({
       </Field>
       {kind === "transfer" ? (
         <>
-        <Field
-          label="Cuenta de destino"
-          hint={
-            destinations.length
-              ? `Solo cuentas en ${account?.currency}.`
-              : `No hay otra cuenta activa en ${account?.currency}.`
-          }
-        >
-          <Select
-            required
-            value={destinationId || ""}
-            onChange={(event) => setDestinationId(Number(event.target.value))}
-            disabled={!destinations.length}
+          <Field
+            label="Cuenta de destino"
+            hint={
+              destinations.length
+                ? `Solo cuentas en ${account?.currency}.`
+                : `No hay otra cuenta activa en ${account?.currency}.`
+            }
           >
-            <option value="">Elegí una cuenta</option>
-            {destinations.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} · {item.currency}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label={`Monto recibido · ${destinations.find((item) => item.id === destinationId)?.currency ?? ""}`}>
-          <Input
-            required
-            inputMode="decimal"
-            placeholder="Igual al origen si comparten moneda"
-            value={destinationAmount}
-            onChange={(event) => setDestinationAmount(event.target.value)}
-          />
-        </Field>
-        <Field label="Propósito">
-          <Select value={purpose} onChange={(event) => setPurpose(event.target.value as TransferPurpose)}>
-            <option value="regular">Transferencia</option>
-            <option value="savings">Ahorro</option>
-            <option value="investment">Inversión</option>
-          </Select>
-        </Field>
+            <Select
+              required
+              value={destinationId || ""}
+              onChange={(event) => setDestinationId(Number(event.target.value))}
+              disabled={!destinations.length}
+            >
+              <option value="">Elegí una cuenta</option>
+              {destinations.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.currency}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
+            label={`Monto recibido · ${destinations.find((item) => item.id === destinationId)?.currency ?? ""}`}
+          >
+            <Input
+              required
+              inputMode="decimal"
+              placeholder="Igual al origen si comparten moneda"
+              value={destinationAmount}
+              onChange={(event) => setDestinationAmount(event.target.value)}
+            />
+          </Field>
+          <Field label="Propósito">
+            <Select
+              value={purpose}
+              onChange={(event) =>
+                setPurpose(event.target.value as TransferPurpose)
+              }
+            >
+              <option value="regular">Transferencia</option>
+              <option value="savings">Ahorro</option>
+              <option value="investment">Inversión</option>
+            </Select>
+          </Field>
         </>
       ) : (
         <Field label="Categoría">

@@ -226,7 +226,10 @@ function AccountsSettings() {
         }
       />
       {reconciling ? (
-        <form className="settings-form" onSubmit={(event) => void reconcile(event)}>
+        <form
+          className="settings-form"
+          onSubmit={(event) => void reconcile(event)}
+        >
           <h3>Conciliar saldo · {reconciling.name}</h3>
           <p className="notice">
             Saldo calculado por MyFinance:{" "}
@@ -251,7 +254,12 @@ function AccountsSettings() {
             />
           </Field>
           <Field label="Nota">
-            <Input name="note" required defaultValue="Conciliación con saldo bancario" maxLength={240} />
+            <Input
+              name="note"
+              required
+              defaultValue="Conciliación con saldo bancario"
+              maxLength={240}
+            />
           </Field>
           <FormActions saving={saving} cancel={() => setReconciling(null)} />
         </form>
@@ -293,8 +301,8 @@ function AccountsSettings() {
           ) : (
             <p className="notice">
               La moneda {editing.currency} y el saldo inicial no se editan una
-              vez creada la cuenta. Usá “Conciliar saldo” para corregir el
-              saldo actual de forma auditable.
+              vez creada la cuenta. Usá “Conciliar saldo” para corregir el saldo
+              actual de forma auditable.
             </p>
           )}
           <FormActions saving={saving} cancel={() => setEditing(null)} />
@@ -317,15 +325,15 @@ function AccountsSettings() {
                     {account.currency} · Saldo actual{" "}
                     {formatMoney(account.current_balance, account.currency)}
                   </span>
-                {account.adjustments?.[0] ? (
-                  <small>
-                    Última conciliación: {account.adjustments?.[0]?.date} ·{" "}
-                    {formatMoney(
-                      account.adjustments?.[0]?.amount ?? "0",
-                      account.currency,
-                    )}
-                  </small>
-                ) : null}
+                  {account.adjustments?.[0] ? (
+                    <small>
+                      Última conciliación: {account.adjustments?.[0]?.date} ·{" "}
+                      {formatMoney(
+                        account.adjustments?.[0]?.amount ?? "0",
+                        account.currency,
+                      )}
+                    </small>
+                  ) : null}
                 </div>
                 <StatusPill tone={account.is_active ? "success" : "neutral"}>
                   {account.is_active ? "Activa" : "Archivada"}
@@ -908,10 +916,7 @@ function BudgetSettings() {
     const raw = formText(data, "amount").trim();
     try {
       state.setData(
-        await api.settings.updateBudget(
-          currency,
-          raw ? parseMoney(raw) : null,
-        ),
+        await api.settings.updateBudget(currency, raw ? parseMoney(raw) : null),
       );
       setSaved(true);
     } catch (reason) {
@@ -1023,8 +1028,7 @@ function decimalDifference(left: string, right: string): string {
   const cents = (value: string) => {
     const negative = value.startsWith("-");
     const [whole, fraction = ""] = value.replace("-", "").split(".");
-    const result =
-      Number(whole) * 100 + Number((fraction + "00").slice(0, 2));
+    const result = Number(whole) * 100 + Number((fraction + "00").slice(0, 2));
     return negative ? -result : result;
   };
   const result = cents(left) - cents(right);
@@ -1032,8 +1036,6 @@ function decimalDifference(left: string, right: string): string {
     Math.abs(result) % 100,
   ).padStart(2, "0")}`;
 }
-
- 
 
 function nextPriority(rules: CategoryRule[]): number {
   return rules.length

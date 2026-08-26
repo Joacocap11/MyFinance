@@ -4,7 +4,10 @@ export function formText(data: FormData, key: string): string {
 }
 
 export function parseMoney(value: string): string {
-  const token = value.trim().replace(/\u00a0/g, "").replace(/\s/g, "");
+  const token = value
+    .trim()
+    .replace(/\u00a0/g, "")
+    .replace(/\s/g, "");
   if (!/^[+-]?\d[\d.,]*$/.test(token)) throw new Error("Importe inválido");
   const sign = token.startsWith("-") ? "-" : "";
   const unsigned = token.replace(/^[+-]/, "");
