@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-myfinance}
+      POSTGRES_USER: ${POSTGRES_USER:-myfinance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-for-local-development}
+    ports:
+      - target: 5432
+        published: "${POSTGRES_PORT:-5432}"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-myfinance}:${POSTGRES_PASSWORD:-change-me-for-local-development}@postgres:5432/${POSTGRES_DB:-myfinance}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000","http://127.0.0.1:3000"]}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    command:
+      - /bin/sh
+      - -c
+      - alembic upgrade head && python -m app.seed && exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - target: 8000
+        published: "${BACKEND_PORT:-8000}"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    init: true
+    ports:
+      - target: 80
+        published: "${FRONTEND_PORT:-3000}"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  postgres_data:
