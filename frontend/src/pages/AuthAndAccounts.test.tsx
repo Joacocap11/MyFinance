@@ -48,7 +48,17 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
     expect(screen.getByLabelText("Contraseña")).toHaveAttribute("type", "text");
     await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
-    expect(login).toHaveBeenCalledWith("user@example.com", "secret");
+    expect(login).toHaveBeenCalledWith("user@example.com", "secret", false);
+  });
+  it("envía la preferencia de sesión persistente", async () => {
+    login.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<MemoryRouter><LoginPage /></MemoryRouter>);
+    await user.type(screen.getByLabelText("Email"), "user@example.com");
+    await user.type(screen.getByLabelText("Contraseña"), "secret");
+    await user.click(screen.getByRole("checkbox", { name: "Mantener mi sesión iniciada" }));
+    await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
+    expect(login).toHaveBeenCalledWith("user@example.com", "secret", true);
   });
 
   it("muestra el error de credenciales y bloquea el submit mientras espera", async () => {

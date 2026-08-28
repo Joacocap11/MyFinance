@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import { api, saveSession } from "./client";
+import { api, loadStoredSession, saveSession } from "./client";
 import type { Session } from "./types";
 
 jest.mock("expo-secure-store", () => ({
@@ -31,6 +31,30 @@ test("SecureStore contiene únicamente la sesión y no credenciales", async () =
   expect(JSON.stringify(session)).not.toContain("password");
   expect(JSON.stringify(session)).not.toContain("password_hash");
 });
+test("restaura la sesión desde SecureStore", async () => {
+  (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(session));
+  await expect(loadStoredSession()).resolves.toEqual(session);
+  expect(SecureStore.getItemAsync).toHaveBeenCalledWith("myfinance.session");
+});
+
+test("refresca /auth/me cuando el access token expiró", async () => {
+  await saveSession(session);
+  const fetchMock = jest.spyOn(global, "fetch")
+    .mockResolvedValueOnce(new Response("{}", { status: 401 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      access_token: "new-access",
+      refresh_token: "new-refresh",
+      token_type: "bearer",
+      expires_in: 1800,
+    }), { status: 200 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, email: "user@example.com" }), { status: 200 }));
+
+  await expect(api.auth.me()).resolves.toEqual({ id: 1, email: "user@example.com" });
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(String(fetchMock.mock.calls[1][0])).toContain("/auth/refresh");
+  fetchMock.mockRestore();
+});
+
 
 test("sends transfer fields to the existing transactions endpoint", async () => {
   await saveSession(session);

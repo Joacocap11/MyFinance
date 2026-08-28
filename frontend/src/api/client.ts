@@ -27,7 +27,7 @@ const API_BASE =
     "",
   ) ?? "/api/v1";
 
-type SessionTokens = {
+export type SessionTokens = {
   access_token: string;
   refresh_token: string;
   user: { id: number; email: string; is_admin: boolean };
@@ -38,8 +38,48 @@ export type RegistrationStatus = {
   max_users: number;
   remaining_slots: number;
 };
+const SESSION_KEY = "myfinance.session";
 type Primitive = string | number | boolean | null | undefined;
 let session: SessionTokens | null = null;
+
+function parseStoredSession(storage: Storage): SessionTokens | null {
+  const value = storage.getItem(SESSION_KEY);
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as SessionTokens;
+  } catch {
+    storage.removeItem(SESSION_KEY);
+    return null;
+  }
+}
+
+export function loadStoredSession(): SessionTokens | null {
+  if (typeof window === "undefined") return null;
+  return parseStoredSession(sessionStorage) ?? parseStoredSession(localStorage);
+}
+
+export function persistSession(value: SessionTokens, remember: boolean): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_KEY);
+  (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(value));
+}
+
+export function updateStoredSession(value: SessionTokens): void {
+  if (typeof window === "undefined") return;
+  const storage = localStorage.getItem(SESSION_KEY) !== null ? localStorage : sessionStorage;
+  storage.setItem(SESSION_KEY, JSON.stringify(value));
+}
+
+export function clearStoredSession(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_KEY);
+}
+
+export function isPersistentSession(): boolean {
+  return typeof window !== "undefined" && localStorage.getItem(SESSION_KEY) !== null;
+}
 
 export function setSession(value: SessionTokens | null) {
   session = value;
@@ -60,8 +100,7 @@ async function refreshSession(): Promise<boolean> {
   }
   const tokens = (await response.json()) as Omit<SessionTokens, "user">;
   session = { ...session, ...tokens };
-  if (typeof window !== "undefined")
-    sessionStorage.setItem("myfinance.session", JSON.stringify(session));
+  updateStoredSession(session);
   return true;
 }
 export class ApiError extends Error {

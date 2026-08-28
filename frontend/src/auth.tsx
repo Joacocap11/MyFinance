@@ -1,8 +1,14 @@
 /* eslint-disable react-refresh/only-export-components -- context and hook are one auth module. */
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { api, setSession } from "./api/client";
-
+import {
+  api,
+  clearStoredSession,
+  loadStoredSession,
+  persistSession,
+  setSession,
+  updateStoredSession,
+} from "./api/client";
 type User = { id: number; email: string; is_admin: boolean };
 type Session = {
   access_token: string;
@@ -13,32 +19,21 @@ type Session = {
 type AuthContextValue = {
   session: Session | null;
   ready: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, remember: boolean) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
-const STORAGE_KEY = "myfinance.session";
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function loadSession(): Session | null {
-  try {
-    const value = sessionStorage.getItem(STORAGE_KEY);
-    return value ? (JSON.parse(value) as Session) : null;
-  } catch {
-    sessionStorage.removeItem(STORAGE_KEY);
-    return null;
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setStoredSession] = useState<Session | null>(loadSession);
-  const [ready, setReady] = useState(() => !loadSession());
+  const [session, setStoredSession] = useState<Session | null>(() => loadStoredSession());
+  const [ready, setReady] = useState(() => loadStoredSession() === null);
   const validatedToken = useRef<string | null>(null);
 
   useEffect(() => {
     const expire = () => {
-      sessionStorage.removeItem(STORAGE_KEY);
+      clearStoredSession();
       setSession(null);
       setStoredSession(null);
       setReady(true);
@@ -59,16 +54,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     void api.auth.me()
       .then((user) => {
-        const stored = sessionStorage.getItem(STORAGE_KEY);
-        const current = stored ? (JSON.parse(stored) as Session) : session;
-        const next = { ...current, user };
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        const next = { ...session, user };
+        updateStoredSession(next);
         setSession(next);
         setStoredSession(next);
       })
       .catch(() => {
         if (active) {
-          sessionStorage.removeItem(STORAGE_KEY);
+          clearStoredSession();
           setSession(null);
           setStoredSession(null);
         }
@@ -84,22 +77,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(() => ({
     session,
     ready,
-    async login(email, password) {
+    async login(email, password, remember) {
       const next = await api.auth.login(email.trim(), password);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      persistSession(next, remember);
       setSession(next);
       setStoredSession(next);
       setReady(true);
     },
     async register(email, password) {
       const next = await api.auth.register(email.trim(), password);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      persistSession(next, false);
       setSession(next);
       setStoredSession(next);
       setReady(true);
     },
     logout() {
-      sessionStorage.removeItem(STORAGE_KEY);
+      clearStoredSession();
       setSession(null);
       setStoredSession(null);
       window.dispatchEvent(new Event("myfinance-logout"));

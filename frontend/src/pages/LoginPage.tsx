@@ -12,6 +12,7 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +31,7 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(email, password, remember);
       void navigate((location.state as { from?: string } | null)?.from ?? "/", { replace: true });
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "No se pudo iniciar sesión");
@@ -66,6 +67,10 @@ export function LoginPage() {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </span>
+          </label>
+          <label className="remember-session">
+            <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
+            <span>Mantener mi sesión iniciada</span>
           </label>
           {error && <p className="state state--error login-error" role="alert">{error}</p>}
           <button className="button button--primary login-submit" type="submit" disabled={submitting}>

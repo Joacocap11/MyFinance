@@ -47,7 +47,7 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
   let response: Response;
   try { response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers }); }
   catch { throw new ApiError(0, "No se pudo conectar con MyFinance. Verificá la red o que el servidor esté disponible."); }
-  if (response.status === 401 && !retried && !path.startsWith("/auth/") && await refresh()) return request<T>(path, init, true);
+  if (response.status === 401 && !retried && path !== "/auth/login" && path !== "/auth/refresh" && await refresh()) return request<T>(path, init, true);
   if (!response.ok) {
     let body: unknown;
     try { body = await response.json(); } catch { body = undefined; }
