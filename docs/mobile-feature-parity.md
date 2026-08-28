@@ -2,32 +2,29 @@
 
 Auditoría basada en las rutas de `frontend/src/App.tsx`, los contratos de `frontend/src/api/client.ts` y `backend/app/api.py`. Mobile comparte los endpoints de dominio; no duplica cálculos financieros.
 
-| Funcionalidad | Web | Mobile | Próximo paso |
+| Funcionalidad | Web | Mobile | Estado |
 |---|---:|---:|---|
-| Login | ✓ | ✓ | — |
-| Registro | ✓ | — | Incorporar cuando el flujo de alta mobile sea prioritario |
-| Recordar email | — | ✓ | Mobile usa `last_login_email`; nunca guarda password |
-| Sesión persistente | ✓ | ✓ | — |
-| Cambio de contraseña | ✓ | ✓ | — |
-| Movimientos: listar/detalle | ✓ | ✓ | Agregar filtros mobile progresivamente |
-| Movimientos: crear | ✓ | ✓ | — |
-| Movimientos: editar/anular | ✓ | ✓ | — |
-| Cuentas: listar/detalle | ✓ | ✓ | — |
-| Cuentas: crear/editar | ✓ | ✓ | — |
-| Cuentas: archivar/reactivar | ✓ | ✓ | — |
-| Cuentas: reconciliar saldo | ✓ | — | Próxima iteración |
-| Eliminar cuentas | ✓ | — | Mantener fuera hasta diseñar confirmación y errores 409 |
-| Categorías: listar | ✓ | ✓ (selector de movimientos) | Administración pendiente |
-| Categorías: crear/editar/archivar | ✓ | — | Próxima iteración |
-| Reporte mensual | ✓ | ✓ | — |
-| Histórico mensual | ✓ | ✓ (navegación en Inicio) | — |
-| Gastos por categoría | ✓ | ✓ (top 5) | Pantalla “Ver todas” pendiente |
-| Presupuestos | — / contrato backend existente | — | Auditar UX cuando exista pantalla Web |
-| Recurrencias | ✓ | — | Próxima iteración |
-| Reglas de categorización | ✓ | — | Próxima iteración |
-| Autocategorización | ✓ | — | Próxima iteración |
-| Administración de usuarios | ✓ | — | Solo rol administrador; evaluar UX mobile |
-| Importar CSV/XLSX | ✓ | **NO** | Excepción explícita: queda en Web/Desktop |
+| Login / sesión persistente | ✓ | ✓ | Web + Mobile |
+| Registro | ✓ | — | Web only |
+| Cambio de contraseña | ✓ | ✓ | Web + Mobile |
+| Movimientos: listar/detalle | ✓ | ✓ | Web + Mobile |
+| Movimientos: crear/editar/anular | ✓ | ✓ | Web + Mobile |
+| Movimientos: filtros (mes, tipo, cuenta, categoría, búsqueda) | ✓ | ✓ | Web + Mobile |
+| Cuentas: listar/crear/editar/archivar/reactivar | ✓ | ✓ | Web + Mobile |
+| Cuentas: reconciliar saldo | ✓ | ✓ | Web + Mobile |
+| Eliminar cuentas | ✓ | — | Web only; confirmación/errores 409 fuera de Mobile |
+| Categorías: listar/crear/editar/archivar/reactivar | ✓ | ✓ | Web + Mobile |
+| Categorías: subcategorías | ✓ | Parcial | Backend soporta parent_id; selector de padre aún no está expuesto |
+| Reporte mensual | ✓ | ✓ | Web + Mobile |
+| Histórico mensual por moneda | ✓ | ✓ | Web + Mobile |
+| Gastos por categoría | ✓ | ✓ | Web + Mobile |
+| Presupuestos mensuales | ✓ | ✓ | Web + Mobile |
+| Gastos recurrentes: listar/activar/desactivar | ✓ | ✓ | Web + Mobile |
+| Gastos recurrentes: crear/editar | ✓ | — | Web only; Mobile informa el límite actual |
+| Reglas de categorización / autocategorización | ✓ | — | Web only |
+| Administración de usuarios | ✓ | — | Web only; función administrativa no cotidiana |
+| Importar CSV/XLSX | ✓ | **NO** | No aplicable Mobile |
+| Backups, migraciones, tooling técnico | ✓ | **NO** | No aplicable Mobile |
 
 ## Decisiones financieras
 
@@ -42,22 +39,26 @@ Auditoría basada en las rutas de `frontend/src/App.tsx`, los contratos de `fron
 
 Implementado:
 
-- email recordado separado de la sesión y sin credenciales;
-- selector de mes anterior/siguiente con límite en el mes actual;
-- acción “Mes actual” para volver rápidamente;
-- eliminación del listado de cuentas del Dashboard;
-- top 5 de gastos por categoría con importe y barra proporcional;
-- estado vacío para meses sin gastos;
-- CTA y formulario de nueva cuenta para UYU, USD y UI;
-- edición de nombre y archive/reactivate desde detalle de cuenta.
+- detalle completo de movimiento, edición y anulación lógica con confirmación;
+- filtros server-side de mes, tipo, cuenta, categoría y búsqueda;
+- administración mobile de categorías activas/inactivas;
+- reportes mensuales, gastos por categoría e histórico configurable por moneda;
+- listado y activación/desactivación de gastos recurrentes;
+- lectura y actualización de presupuesto mensual;
+- reconciliación de saldo desde el detalle de cuenta;
+- invalidación de movimientos, dashboard, cuentas y reportes después de mutaciones.
 
-No implementado en esta subfase:
+Limitaciones documentadas:
 
-- importación CSV/XLSX mobile;
-- reconciliación de saldos;
-- eliminación de cuentas;
-- administración de categorías, reglas y recurrencias;
-- filtros avanzados de movimientos;
-- pantalla separada “Ver todas” para categorías.
+- el backend permite subcategorías (`parent_id`), pero Mobile aún no expone selector de padre;
+- crear/editar recurrentes existe en backend/Web, pero Mobile solo administra reglas existentes;
+- filtros de moneda/estado y rangos de fecha existen en la API/Web, pero no se muestran en la hoja mobile actual;
+- el origen de importación se muestra solo si la API devuelve `category_source`.
+
+Fuera de Mobile V2:
+
+- importación CSV/XLSX;
+- backups, migraciones, tooling técnico y administración de usuarios;
+- eliminación de cuentas y reglas de categorización.
 
 Mobile debe considerarse una superficie de administración financiera completa en evolución, no una versión lite. Cada incorporación futura debe reutilizar contratos y reglas del backend existentes.
