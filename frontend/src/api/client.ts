@@ -32,6 +32,12 @@ type SessionTokens = {
   refresh_token: string;
   user: { id: number; email: string; is_admin: boolean };
 };
+export type RegistrationStatus = {
+  enabled: boolean;
+  current_users: number;
+  max_users: number;
+  remaining_slots: number;
+};
 type Primitive = string | number | boolean | null | undefined;
 let session: SessionTokens | null = null;
 
@@ -128,6 +134,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ email, password }),
       }),
+    registrationStatus: () => request<RegistrationStatus>("/auth/registration-status"),
     login: (email: string, password: string) =>
       request<SessionTokens>("/auth/login", {
         method: "POST",

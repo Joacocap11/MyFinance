@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app import auth, models, schemas
@@ -31,18 +31,47 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+def _user_count_with_registration_lock(db: Session) -> int:
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(184467440737095516)"))
+    return db.scalar(select(func.count()).select_from(models.User)) or 0
+
+
+def _ensure_user_slot(db: Session) -> int:
+    current_users = _user_count_with_registration_lock(db)
+    if current_users >= get_settings().max_users:
+        raise HTTPException(status_code=409, detail="Se alcanzó el límite máximo de cuentas.")
+    return current_users
+
+
+@public_router.get("/auth/registration-status")
+def registration_status(db: Db) -> dict[str, int | bool]:
+    current_users = db.scalar(select(func.count()).select_from(models.User)) or 0
+    max_users = get_settings().max_users
+    remaining_slots = max(max_users - current_users, 0)
+    return {
+        "enabled": current_users < max_users,
+        "current_users": current_users,
+        "max_users": max_users,
+        "remaining_slots": remaining_slots,
+    }
+
+
 @public_router.post("/auth/register", status_code=201)
 def register(data: AuthCredentials, db: Db) -> dict[str, object]:
-    if db.scalar(select(func.count()).select_from(models.User)) or 0:
-        raise HTTPException(status_code=403, detail="El registro inicial ya fue completado")
     email = data.email.strip().lower()
     if "@" not in email or not data.password:
         raise domain.DomainError("Email y contraseña son obligatorios", 422)
-    user = models.User(email=email, password_hash=auth.hash_password(data.password), is_admin=True)
+    current_users = _ensure_user_slot(db)
+    user = models.User(
+        email=email,
+        password_hash=auth.hash_password(data.password),
+        is_admin=current_users == 0,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
-    seed_data(db, user.id)
+    seed_data(db, user.id, create_account=False)
     return {
         "user": {"id": user.id, "email": user.email, "is_admin": user.is_admin},
         **auth.issue_tokens(user),
@@ -99,6 +128,7 @@ def create_user(data: schemas.UserCreate, db: Db) -> models.User:
         raise domain.DomainError("Email inválido", 422)
     if db.scalar(select(models.User).where(models.User.email == email)):
         raise domain.DomainError("El email ya está registrado", 409)
+    _ensure_user_slot(db)
     user = models.User(
         email=email, password_hash=auth.hash_password(data.password), is_admin=data.is_admin
     )

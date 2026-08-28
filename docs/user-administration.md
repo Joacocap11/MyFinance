@@ -1,12 +1,16 @@
 # Administración de usuarios
 
-## Bootstrap
+En una instalación sin usuarios, `/register` permite crear el primer usuario administrador. El registro público permanece disponible mientras haya menos de `MAX_USERS` usuarios. El valor predeterminado es `5` y puede cambiarse mediante la variable de entorno `MAX_USERS` en `.env` o Compose.
 
-En una instalación sin usuarios, `/registro` permite crear el primer usuario administrador. Ese usuario recibe las categorías iniciales y una cuenta principal. Cuando ya existe un usuario, el registro público responde que el bootstrap terminó.
+El endpoint público `GET /api/v1/auth/registration-status` informa si el registro está habilitado, la cantidad actual, el máximo y los cupos restantes. No expone datos personales.
 
-## Alta de usuarios
+El primer usuario recibe categorías iniciales y no recibe cuentas financieras automáticamente. Cada usuario posterior se crea como usuario normal, recibe sus propias categorías iniciales y comienza sin cuentas ni movimientos. El límite se aplica dentro de una transacción protegida contra registros concurrentes.
 
-Un administrador entra en **Ajustes → Usuarios**, crea el usuario y define su contraseña inicial. El nuevo usuario recibe categorías iniciales, pero crea sus propias cuentas financieras.
+Cuando se alcanza el máximo, `/register` sigue siendo accesible y muestra `Se alcanzó el límite máximo de cuentas de esta instalación.` El formulario queda deshabilitado. El backend rechaza igualmente llamadas directas a `POST /api/v1/auth/register` con `409 Conflict`.
+
+El registro público no permite enviar `is_admin` ni `owner_id`. El primer usuario recibe `is_admin=true`; todos los siguientes reciben `is_admin=false`.
+
+Un administrador entra en **Ajustes → Usuarios**, crea el usuario y define su contraseña inicial. Este mecanismo se mantiene como alternativa al auto-registro. El nuevo usuario recibe categorías iniciales, pero crea sus propias cuentas financieras.
 
 ## Estado y permisos
 

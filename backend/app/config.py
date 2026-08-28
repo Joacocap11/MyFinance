@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+    max_users: int = Field(default=5, ge=1)
     jwt_secret: str = "change-me-before-using-authentication"
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 30

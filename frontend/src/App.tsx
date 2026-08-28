@@ -81,7 +81,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
-  { path: "/registro", element: <RegisterPage /> },
+  { path: "/register", element: <RegisterPage /> },
   {
     path: "/",
     element: (

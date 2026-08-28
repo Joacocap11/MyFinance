@@ -1,13 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginPage } from "./LoginPage";
+import { RegisterPage } from "./RegisterPage";
 import { SettingsPage } from "./SettingsPage";
 
 const login = vi.fn();
+const register = vi.fn();
 vi.mock("../auth", () => ({
-  useAuth: () => ({ login, ready: true, session: null }),
+  useAuth: () => ({ login, register, ready: true, session: null }),
 }));
 
 function json(data: unknown, status = 200): Response {
@@ -56,6 +58,50 @@ describe("LoginPage", () => {
     await user.type(screen.getByLabelText("Contraseña"), "wrong");
     await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo iniciar sesión");
+  });
+});
+
+describe("RegisterPage", () => {
+  beforeEach(() => {
+    register.mockReset();
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({
+      enabled: true,
+      current_users: 1,
+      max_users: 5,
+      remaining_slots: 4,
+    }))));
+  });
+
+  it("muestra el enlace de registro desde login y permite crear una cuenta", async () => {
+    register.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    const loginView = render(<MemoryRouter><LoginPage /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "Crear cuenta" })).toHaveAttribute("href", "/register");
+    loginView.unmount();
+    render(<MemoryRouter><RegisterPage /></MemoryRouter>);
+    await user.type(screen.getByLabelText("Email"), "new@example.com");
+    await user.type(screen.getByLabelText("Contraseña"), "secret");
+    await user.type(screen.getByLabelText("Confirmar contraseña"), "secret");
+    await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(register).toHaveBeenCalledWith("new@example.com", "secret");
+  });
+
+  it("valida confirmación y deshabilita el formulario cuando no quedan cupos", async () => {
+    const user = userEvent.setup();
+    const pageView = render(<MemoryRouter><RegisterPage /></MemoryRouter>);
+    await user.type(screen.getByLabelText("Email"), "mismatch@example.com");
+    await user.type(screen.getByLabelText("Contraseña"), "secret");
+    await user.type(screen.getByLabelText("Confirmar contraseña"), "different");
+    await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("no coinciden");
+
+    pageView.unmount();
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({
+      enabled: false, current_users: 5, max_users: 5, remaining_slots: 0,
+    }))));
+    render(<MemoryRouter><RegisterPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Crear cuenta" })).toBeDisabled());
+    expect(screen.getByRole("link", { name: /Ya tengo cuenta/ })).toHaveAttribute("href", "/login");
   });
 });
 

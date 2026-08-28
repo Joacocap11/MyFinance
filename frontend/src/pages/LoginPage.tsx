@@ -72,7 +72,7 @@ export function LoginPage() {
             {submitting ? "Ingresando…" : "Iniciar sesión"}
           </button>
         </form>
-        <p className="login-intro"><Link to="/registro">¿Primera instalación? Crear usuario administrador</Link></p>
+        <p className="login-intro">¿No tenés cuenta? <Link to="/register">Crear cuenta</Link></p>
       </section>
     </main>
   );
