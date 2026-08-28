@@ -4,19 +4,66 @@ from datetime import date
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app import models, schemas
+from app import auth, models, schemas
 from app.config import get_settings
 from app.db import get_db
 from app.services import autocategorization, domain, imports, reports
 
 Db = Annotated[Session, Depends(get_db)]
-router = APIRouter(prefix="/api/v1")
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(auth.current_user)])
+public_router = APIRouter(prefix="/api/v1")
 
+
+class AuthCredentials(BaseModel):
+    email: str
+    password: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@public_router.post("/auth/register", status_code=201)
+def register(data: AuthCredentials, db: Db) -> dict[str, object]:
+    if db.scalar(select(func.count()).select_from(models.User)) or 0:
+        raise HTTPException(status_code=403, detail="El registro inicial ya fue completado")
+    email = data.email.strip().lower()
+    if "@" not in email or not data.password:
+        raise domain.DomainError("Email y contraseña son obligatorios", 422)
+    user = models.User(email=email, password_hash=auth.hash_password(data.password))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"user": {"id": user.id, "email": user.email}, **auth.issue_tokens(user)}
+
+
+@public_router.post("/auth/login")
+def login(data: AuthCredentials, db: Db) -> dict[str, object]:
+    user = db.scalar(select(models.User).where(models.User.email == data.email.strip().lower()))
+    if user is None or not auth.verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    return {"user": {"id": user.id, "email": user.email}, **auth.issue_tokens(user)}
+
+
+@public_router.post("/auth/refresh")
+def refresh(data: RefreshRequest, db: Db) -> dict[str, object]:
+    payload = auth._decode(data.refresh_token)
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Refresh token requerido")
+    user = db.get(models.User, int(payload["sub"]))
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="Usuario no disponible")
+    return auth.issue_tokens(user)
+
+
+@public_router.get("/auth/me")
+def me(user: auth.CurrentUser) -> dict[str, object]:
+    return {"id": user.id, "email": user.email}
 
 @router.get("/transactions", response_model=schemas.TransactionList)
 def list_transactions(

@@ -26,8 +26,37 @@ const API_BASE =
     "",
   ) ?? "/api/v1";
 
+type SessionTokens = {
+  access_token: string;
+  refresh_token: string;
+  user: { id: number; email: string };
+};
 type Primitive = string | number | boolean | null | undefined;
+let session: SessionTokens | null = null;
 
+export function setSession(value: SessionTokens | null) {
+  session = value;
+}
+
+async function refreshSession(): Promise<boolean> {
+  if (!session) return false;
+  const response = await fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: session.refresh_token }),
+  });
+  if (!response.ok) {
+    if (typeof window !== "undefined")
+      window.dispatchEvent(new Event("myfinance-auth-expired"));
+    session = null;
+    return false;
+  }
+  const tokens = (await response.json()) as Omit<SessionTokens, "user">;
+  session = { ...session, ...tokens };
+  if (typeof window !== "undefined")
+    sessionStorage.setItem("myfinance.session", JSON.stringify(session));
+  return true;
+}
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -49,11 +78,20 @@ function errorMessage(
   return fallback;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const headers = new Headers(init?.headers);
+  if (session) headers.set("Authorization", `Bearer ${session.access_token}`);
   if (init?.body && !(init.body instanceof FormData))
     headers.set("Content-Type", "application/json");
   const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (
+    response.status === 401 &&
+    !retried &&
+    !path.startsWith("/auth/login") &&
+    !path.startsWith("/auth/refresh") &&
+    (await refreshSession())
+  )
+    return request<T>(path, init, true);
   if (!response.ok) {
     let body: ApiErrorBody | undefined;
     try {
@@ -63,10 +101,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(
       response.status,
-      errorMessage(
-        body,
-        `No se pudo completar la solicitud (${response.status})`,
-      ),
+      errorMessage(body, `No se pudo completar la solicitud (${response.status})`),
       body,
     );
   }
@@ -86,6 +121,19 @@ function query(params: object): string {
 }
 
 export const api = {
+  auth: {
+    login: (email: string, password: string) =>
+      request<SessionTokens>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
+    refresh: (refreshToken: string) =>
+      request<Omit<SessionTokens, "user">>("/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      }),
+    me: () => request<SessionTokens["user"]>("/auth/me"),
+  },
   reports: {
     monthly: (month: string, currency: Currency, signal?: AbortSignal) =>
       request<MonthlyReport>(`/reports/monthly${query({ month, currency })}`, {

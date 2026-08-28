@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+.sql
+.sql.*
 
 # Python
 __pycache__/
@@ -33,3 +35,4 @@ Thumbs.db
 # Logs and temporary files
 *.log
 *.tmp
+backups/

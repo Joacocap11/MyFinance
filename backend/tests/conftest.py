@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app import models
+from app import auth, models
 from app.db import Base, get_db
 from app.main import app
 
@@ -27,7 +27,7 @@ def db() -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(db: Session) -> Generator[TestClient, None, None]:
+def unauthenticated_client(db: Session) -> Generator[TestClient, None, None]:
     def override_db() -> Generator[Session, None, None]:
         yield db
 
@@ -35,6 +35,16 @@ def client(db: Session) -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client(db: Session, unauthenticated_client: TestClient) -> Generator[TestClient, None, None]:
+    user = models.User(email="test@example.com", password_hash=auth.hash_password("test-password"))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    unauthenticated_client.headers["Authorization"] = f"Bearer {auth.issue_tokens(user)['access_token']}"
+    yield unauthenticated_client
 
 
 @pytest.fixture
