@@ -54,6 +54,24 @@ test("refresca /auth/me cuando el access token expiró", async () => {
   expect(String(fetchMock.mock.calls[1][0])).toContain("/auth/refresh");
   fetchMock.mockRestore();
 });
+test("envía el cambio de contraseña sin persistir credenciales", async () => {
+  await saveSession(session);
+  const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify({ detail: "ok" }), { status: 200 }));
+  await expect(api.auth.changePassword("current-password", "new-password-long")).resolves.toEqual({ detail: "ok" });
+  expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/auth/change-password"), expect.objectContaining({
+    method: "POST",
+    body: JSON.stringify({ current_password: "current-password", new_password: "new-password-long" }),
+  }));
+  expect(JSON.stringify((SecureStore.setItemAsync as jest.Mock).mock.calls)).not.toContain("current-password");
+  fetchMock.mockRestore();
+});
+
+test("expone un error claro cuando la API no responde", async () => {
+  await saveSession(session);
+  const fetchMock = jest.spyOn(global, "fetch").mockRejectedValue(new Error("offline"));
+  await expect(api.accounts()).rejects.toMatchObject({ status: 0, message: expect.stringContaining("No se pudo conectar") });
+  fetchMock.mockRestore();
+});
 
 
 test("sends transfer fields to the existing transactions endpoint", async () => {

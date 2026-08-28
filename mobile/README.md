@@ -9,12 +9,20 @@ cd mobile
 npm install
 cp .env.example .env
 ```
-
-Set `EXPO_PUBLIC_API_BASE_URL` to the API address reachable by the phone. Do not use `localhost` on a physical device:
+Set `EXPO_PUBLIC_API_BASE_URL` to the API address reachable by the phone. Never hardcode an IP in source code:
 
 ```env
-EXPO_PUBLIC_API_BASE_URL=http://10.x.x.x:3000/api/v1
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.50:3000/api/v1
 ```
+
+Examples:
+
+- LAN / physical device: `http://192.168.1.50:3000/api/v1`
+- WireGuard / Home Lab: `http://10.8.0.5:3000/api/v1`
+- Android Emulator with the backend on the development Mac: `http://10.0.2.2:8000/api/v1`
+- iOS Simulator with the backend on the development Mac: `http://127.0.0.1:8000/api/v1`
+
+Do not use `localhost` on a physical device:
 
 The phone flow is:
 
