@@ -5,13 +5,14 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app import auth, models, schemas
 from app.config import get_settings
 from app.db import get_db
+from app.seed import seed as seed_data
 from app.services import autocategorization, domain, imports, reports
 
 Db = Annotated[Session, Depends(get_db)]
@@ -20,11 +21,13 @@ public_router = APIRouter(prefix="/api/v1")
 
 
 class AuthCredentials(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: str
     password: str
 
 
 class RefreshRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     refresh_token: str
 
 
@@ -35,11 +38,12 @@ def register(data: AuthCredentials, db: Db) -> dict[str, object]:
     email = data.email.strip().lower()
     if "@" not in email or not data.password:
         raise domain.DomainError("Email y contraseña son obligatorios", 422)
-    user = models.User(email=email, password_hash=auth.hash_password(data.password))
+    user = models.User(email=email, password_hash=auth.hash_password(data.password), is_admin=True)
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"user": {"id": user.id, "email": user.email}, **auth.issue_tokens(user)}
+    seed_data(db, user.id)
+    return {"user": {"id": user.id, "email": user.email, "is_admin": user.is_admin}, **auth.issue_tokens(user)}
 
 
 @public_router.post("/auth/login")
@@ -47,7 +51,7 @@ def login(data: AuthCredentials, db: Db) -> dict[str, object]:
     user = db.scalar(select(models.User).where(models.User.email == data.email.strip().lower()))
     if user is None or not auth.verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
-    return {"user": {"id": user.id, "email": user.email}, **auth.issue_tokens(user)}
+    return {"user": {"id": user.id, "email": user.email, "is_admin": user.is_admin}, **auth.issue_tokens(user)}
 
 
 @public_router.post("/auth/refresh")
@@ -63,7 +67,49 @@ def refresh(data: RefreshRequest, db: Db) -> dict[str, object]:
 
 @public_router.get("/auth/me")
 def me(user: auth.CurrentUser) -> dict[str, object]:
-    return {"id": user.id, "email": user.email}
+    return {"id": user.id, "email": user.email, "is_admin": user.is_admin}
+
+
+@router.get("/admin/users", response_model=list[schemas.UserOut], dependencies=[Depends(auth.require_admin)])
+def list_users(db: Db) -> list[models.User]:
+    return list(db.scalars(select(models.User).order_by(models.User.id)))
+
+
+@router.post("/admin/users", response_model=schemas.UserOut, status_code=201, dependencies=[Depends(auth.require_admin)])
+def create_user(data: schemas.UserCreate, db: Db) -> models.User:
+    email = data.email.strip().lower()
+    if "@" not in email:
+        raise domain.DomainError("Email inválido", 422)
+    if db.scalar(select(models.User).where(models.User.email == email)):
+        raise domain.DomainError("El email ya está registrado", 409)
+    user = models.User(email=email, password_hash=auth.hash_password(data.password), is_admin=data.is_admin)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    seed_data(db, user.id, create_account=False)
+    return user
+
+
+@router.patch("/admin/users/{user_id}", response_model=schemas.UserOut, dependencies=[Depends(auth.require_admin)])
+def patch_user(user_id: int, data: schemas.UserPatch, db: Db, admin: auth.CurrentUser) -> models.User:
+    user = db.get(models.User, user_id)
+    if user is None:
+        raise domain.DomainError("Usuario no encontrado", 404)
+    values = data.model_dump(exclude_unset=True)
+    if user.id == admin.id and values.get("is_active") is False:
+        raise domain.DomainError("No podés desactivar tu propio usuario", 409)
+    if user.id == admin.id and values.get("is_admin") is False:
+        raise domain.DomainError("No podés quitarte permisos de administrador", 409)
+    if values.get("is_admin") is False and user.is_admin:
+        admins = db.scalar(select(func.count()).select_from(models.User).where(models.User.is_admin.is_(True), models.User.is_active.is_(True))) or 0
+        if admins <= 1:
+            raise domain.DomainError("Debe existir al menos un administrador activo", 409)
+    for key, value in values.items():
+        setattr(user, key, value)
+    db.commit()
+    db.refresh(user)
+    return user
+
 
 @router.get("/transactions", response_model=schemas.TransactionList)
 def list_transactions(
@@ -82,7 +128,7 @@ def list_transactions(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
 ) -> schemas.TransactionList:
-    query = select(models.Transaction)
+    query = select(models.Transaction).where(domain.owner_clause(db, models.Transaction))
     if month:
         date_from, date_to = reports.month_bounds(month)
     if currency:
@@ -97,39 +143,18 @@ def list_transactions(
         ids = category_descendants(db, category_id)
         query = query.where(models.Transaction.category_id.in_(ids))
     if account_id is not None:
-        query = query.where(
-            or_(
-                models.Transaction.account_id == account_id,
-                models.Transaction.destination_account_id == account_id,
-            )
-        )
+        query = query.where(or_(models.Transaction.account_id == account_id, models.Transaction.destination_account_id == account_id))
     if min_amount is not None:
         query = query.where(models.Transaction.amount >= min_amount)
     if max_amount is not None:
         query = query.where(models.Transaction.amount <= max_amount)
     if search:
-        query = query.where(
-            or_(
-                models.Transaction.description.ilike(f"%{search}%"),
-                models.Transaction.notes.ilike(f"%{search}%"),
-            )
-        )
+        query = query.where(or_(models.Transaction.description.ilike(f"%{search}%"), models.Transaction.notes.ilike(f"%{search}%")))
     if not include_voided:
         query = query.where(models.Transaction.voided_at.is_(None))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
-    items = list(
-        db.scalars(
-            query.order_by(models.Transaction.date.desc(), models.Transaction.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        )
-    )
-    return schemas.TransactionList(
-        items=[schemas.TransactionOut.model_validate(item) for item in items],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
+    items = list(db.scalars(query.order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).offset((page - 1) * page_size).limit(page_size)))
+    return schemas.TransactionList(items=[schemas.TransactionOut.model_validate(item) for item in items], total=total, page=page, page_size=page_size)
 
 
 @router.post("/transactions", response_model=schemas.TransactionOut, status_code=201)
@@ -143,9 +168,7 @@ def get_transaction(transaction_id: int, db: Db) -> models.Transaction:
 
 
 @router.patch("/transactions/{transaction_id}", response_model=schemas.TransactionOut)
-def update_transaction(
-    transaction_id: int, data: schemas.TransactionPatch, db: Db
-) -> models.Transaction:
+def update_transaction(transaction_id: int, data: schemas.TransactionPatch, db: Db) -> models.Transaction:
     transaction = domain.get_or_404(db, models.Transaction, transaction_id)
     return domain.patch_transaction(db, transaction, data)
 
@@ -157,39 +180,21 @@ def void_transaction(transaction_id: int, db: Db) -> models.Transaction:
 
 
 @router.get("/reports/monthly", response_model=schemas.MonthlyReport)
-def monthly_report(
-    month: schemas.Month, currency: models.Currency, db: Db
-) -> schemas.MonthlyReport:
+def monthly_report(month: schemas.Month, currency: models.Currency, db: Db) -> schemas.MonthlyReport:
     return reports.monthly_report(db, month, currency)
 
 
 @router.get("/settings/categorization/preview", response_model=schemas.CategorizationPreview)
 def categorization_preview(db: Db) -> schemas.CategorizationPreview:
-    pending = db.scalar(
-        select(func.count()).select_from(models.Transaction).where(
-            models.Transaction.category_id.is_(None),
-        )
-    ) or 0
+    pending = db.scalar(select(func.count()).select_from(models.Transaction).where(models.Transaction.category_id.is_(None), domain.owner_clause(db, models.Transaction))) or 0
     items = autocategorization.suggestions(db)
     suggestions = []
     for item in items:
-        category = db.get(models.Category, item.category_id)
+        category = db.scalar(select(models.Category).where(models.Category.id == item.category_id, domain.owner_clause(db, models.Category)))
         if category is None:
             continue
-        suggestions.append(
-            schemas.CategorizationSuggestion(
-                transaction_id=item.transaction.id,
-                description=item.transaction.description,
-                category_id=item.category_id,
-                category_name=category.name,
-                confidence=item.confidence,
-            )
-        )
-    return schemas.CategorizationPreview(
-        pending=pending,
-        high_confidence=len(suggestions),
-        suggestions=suggestions,
-    )
+        suggestions.append(schemas.CategorizationSuggestion(transaction_id=item.transaction.id, description=item.transaction.description, category_id=item.category_id, category_name=category.name, confidence=item.confidence))
+    return schemas.CategorizationPreview(pending=pending, high_confidence=len(suggestions), suggestions=suggestions)
 
 
 @router.post("/settings/categorization/apply", response_model=schemas.CategorizationPreview)
@@ -199,15 +204,13 @@ def categorization_apply(db: Db) -> schemas.CategorizationPreview:
 
 
 @router.get("/reports/history", response_model=schemas.HistoryReport)
-def history_report(
-    currency: models.Currency, db: Db, months: int = Query(12, ge=1, le=60)
-) -> schemas.HistoryReport:
+def history_report(currency: models.Currency, db: Db, months: int = Query(12, ge=1, le=60)) -> schemas.HistoryReport:
     return reports.history_report(db, months, currency)
 
 
 @router.get("/settings/accounts", response_model=list[schemas.AccountOut])
 def list_accounts(db: Db) -> list[schemas.AccountOut]:
-    accounts = db.scalars(select(models.Account).order_by(models.Account.name)).all()
+    accounts = db.scalars(select(models.Account).where(domain.owner_clause(db, models.Account)).order_by(models.Account.name)).all()
     return [domain.account_out(db, account) for account in accounts]
 
 
@@ -218,7 +221,7 @@ def get_account(account_id: int, db: Db) -> schemas.AccountOut:
 
 @router.post("/settings/accounts", response_model=schemas.AccountOut, status_code=201)
 def create_account(data: schemas.AccountCreate, db: Db) -> schemas.AccountOut:
-    account = models.Account(**data.model_dump())
+    account = models.Account(owner_id=domain.current_owner_id(db), **data.model_dump())
     db.add(account)
     db.commit()
     db.refresh(account)
@@ -234,75 +237,36 @@ def patch_account(account_id: int, data: schemas.AccountPatch, db: Db) -> schema
     return domain.account_out(db, account)
 
 
-@router.post(
-    "/settings/accounts/{account_id}/reconcile",
-    response_model=schemas.ReconciliationOut,
-)
-def reconcile_account(
-    account_id: int, data: schemas.BalanceAdjustmentCreate, db: Db
-) -> schemas.ReconciliationOut:
+@router.post("/settings/accounts/{account_id}/reconcile", response_model=schemas.ReconciliationOut)
+def reconcile_account(account_id: int, data: schemas.BalanceAdjustmentCreate, db: Db) -> schemas.ReconciliationOut:
     account = domain.get_or_404(db, models.Account, account_id)
     calculated = domain.account_balance(db, account)
     adjustment = data.actual_balance - calculated
     item: models.BalanceAdjustment | None = None
     if adjustment != 0:
-        item = models.BalanceAdjustment(
-            account_id=account.id,
-            date=data.date,
-            amount=adjustment,
-            note=data.note,
-        )
+        item = models.BalanceAdjustment(owner_id=account.owner_id, account_id=account.id, date=data.date, amount=adjustment, note=data.note)
         db.add(item)
         db.commit()
         db.refresh(item)
-    return schemas.ReconciliationOut(
-        account=domain.account_out(db, account),
-        calculated_balance=calculated,
-        actual_balance=data.actual_balance,
-        adjustment=schemas.BalanceAdjustmentOut.model_validate(item) if item else None,
-        already_reconciled=adjustment == 0,
-    )
+    return schemas.ReconciliationOut(account=domain.account_out(db, account), calculated_balance=calculated, actual_balance=data.actual_balance, adjustment=schemas.BalanceAdjustmentOut.model_validate(item) if item else None, already_reconciled=adjustment == 0)
 
 
 @router.delete("/settings/accounts/{account_id}", status_code=204)
 def delete_account(account_id: int, db: Db) -> None:
     account = domain.get_or_404(db, models.Account, account_id)
-    has_transactions = db.scalar(
-        select(models.Transaction.id).where(
-            or_(
-                models.Transaction.account_id == account_id,
-                models.Transaction.destination_account_id == account_id,
-            )
-        ).limit(1)
-    )
-    has_recurring = db.scalar(
-        select(models.RecurringExpense.id)
-        .where(models.RecurringExpense.account_id == account_id)
-        .limit(1)
-    )
-    has_imports = db.scalar(
-        select(models.ImportBatch.id)
-        .where(models.ImportBatch.account_id == account_id)
-        .limit(1)
-    )
-    has_adjustments = db.scalar(
-        select(models.BalanceAdjustment.id)
-        .where(models.BalanceAdjustment.account_id == account_id)
-        .limit(1)
-    )
+    has_transactions = db.scalar(select(models.Transaction.id).where(domain.owner_clause(db, models.Transaction), or_(models.Transaction.account_id == account_id, models.Transaction.destination_account_id == account_id)).limit(1))
+    has_recurring = db.scalar(select(models.RecurringExpense.id).where(domain.owner_clause(db, models.RecurringExpense), models.RecurringExpense.account_id == account_id).limit(1))
+    has_imports = db.scalar(select(models.ImportBatch.id).where(domain.owner_clause(db, models.ImportBatch), models.ImportBatch.account_id == account_id).limit(1))
+    has_adjustments = db.scalar(select(models.BalanceAdjustment.id).where(domain.owner_clause(db, models.BalanceAdjustment), models.BalanceAdjustment.account_id == account_id).limit(1))
     if has_transactions or has_recurring or has_imports or has_adjustments:
-        raise domain.DomainError(
-            "No se puede eliminar una cuenta con movimientos o configuraciones asociadas. "
-            "Podés archivarla para conservar el historial.",
-            409,
-        )
+        raise domain.DomainError("No se puede eliminar una cuenta con movimientos o configuraciones asociadas. Podés archivarla para conservar el historial.", 409)
     db.delete(account)
     db.commit()
 
 
 @router.get("/settings/categories", response_model=list[schemas.CategoryOut])
 def list_categories(db: Db, kind: models.TransactionKind | None = None) -> list[models.Category]:
-    query = select(models.Category)
+    query = select(models.Category).where(domain.owner_clause(db, models.Category))
     if kind:
         if kind == models.TransactionKind.TRANSFER:
             return []
@@ -318,7 +282,7 @@ def get_category(category_id: int, db: Db) -> models.Category:
 @router.post("/settings/categories", response_model=schemas.CategoryOut, status_code=201)
 def create_category(data: schemas.CategoryCreate, db: Db) -> models.Category:
     domain.validate_category_parent(db, data.kind, data.parent_id)
-    category = models.Category(**data.model_dump())
+    category = models.Category(owner_id=domain.current_owner_id(db), **data.model_dump())
     db.add(category)
     db.commit()
     db.refresh(category)
@@ -340,7 +304,7 @@ def patch_category(category_id: int, data: schemas.CategoryPatch, db: Db) -> mod
 
 @router.get("/settings/recurring-expenses", response_model=list[schemas.RecurringOut])
 def list_recurring(db: Db) -> list[models.RecurringExpense]:
-    return list(db.scalars(select(models.RecurringExpense).order_by(models.RecurringExpense.id)))
+    return list(db.scalars(select(models.RecurringExpense).where(domain.owner_clause(db, models.RecurringExpense)).order_by(models.RecurringExpense.id)))
 
 
 @router.get("/settings/recurring-expenses/{item_id}", response_model=schemas.RecurringOut)
@@ -349,7 +313,7 @@ def get_recurring(item_id: int, db: Db) -> models.RecurringExpense:
 
 
 def validate_recurring(db: Session, account_id: int, category_id: int | None) -> None:
-    account = db.get(models.Account, account_id)
+    account = db.scalar(select(models.Account).where(models.Account.id == account_id, domain.owner_clause(db, models.Account)))
     if account is None or not account.is_active:
         raise domain.DomainError("La cuenta no existe o está inactiva")
     domain.validate_category(db, category_id, models.TransactionKind.EXPENSE)
@@ -358,7 +322,7 @@ def validate_recurring(db: Session, account_id: int, category_id: int | None) ->
 @router.post("/settings/recurring-expenses", response_model=schemas.RecurringOut, status_code=201)
 def create_recurring(data: schemas.RecurringCreate, db: Db) -> models.RecurringExpense:
     validate_recurring(db, data.account_id, data.category_id)
-    item = models.RecurringExpense(**data.model_dump())
+    item = models.RecurringExpense(owner_id=domain.current_owner_id(db), **data.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -369,11 +333,7 @@ def create_recurring(data: schemas.RecurringCreate, db: Db) -> models.RecurringE
 def patch_recurring(item_id: int, data: schemas.RecurringPatch, db: Db) -> models.RecurringExpense:
     item = domain.get_or_404(db, models.RecurringExpense, item_id)
     values = data.model_dump(exclude_unset=True)
-    validate_recurring(
-        db,
-        values.get("account_id", item.account_id),
-        values.get("category_id", item.category_id),
-    )
+    validate_recurring(db, values.get("account_id", item.account_id), values.get("category_id", item.category_id))
     for key, value in values.items():
         setattr(item, key, value)
     db.commit()
@@ -383,13 +343,7 @@ def patch_recurring(item_id: int, data: schemas.RecurringPatch, db: Db) -> model
 
 @router.get("/settings/rules", response_model=list[schemas.RuleOut])
 def list_rules(db: Db) -> list[models.CategorizationRule]:
-    return list(
-        db.scalars(
-            select(models.CategorizationRule).order_by(
-                models.CategorizationRule.priority, models.CategorizationRule.id
-            )
-        )
-    )
+    return list(db.scalars(select(models.CategorizationRule).where(domain.owner_clause(db, models.CategorizationRule)).order_by(models.CategorizationRule.priority, models.CategorizationRule.id)))
 
 
 @router.get("/settings/rules/{rule_id}", response_model=schemas.RuleOut)
@@ -398,19 +352,17 @@ def get_rule(rule_id: int, db: Db) -> models.CategorizationRule:
 
 
 def validate_rule_category(db: Session, category_id: int) -> None:
-    category = db.get(models.Category, category_id)
-    if category is None or not category.is_active:
-        raise domain.DomainError("La categoría no existe o está inactiva")
-    if category.kind not in {models.TransactionKind.INCOME, models.TransactionKind.EXPENSE}:
+    category = domain.validate_category(db, category_id, models.TransactionKind.EXPENSE, active=False)
+    if category is None or not category.is_active or category.kind not in {models.TransactionKind.INCOME, models.TransactionKind.EXPENSE}:
         raise domain.DomainError("La categoría de la regla no es válida")
 
 
 @router.post("/settings/rules", response_model=schemas.RuleOut, status_code=201)
 def create_rule(data: schemas.RuleCreate, db: Db) -> models.CategorizationRule:
-    validate_rule_category(db, data.category_id)
-    rule = models.CategorizationRule(
-        **data.model_dump(), normalized_needle=domain.normalize_text(data.needle)
-    )
+    category = db.scalar(select(models.Category).where(models.Category.id == data.category_id, domain.owner_clause(db, models.Category)))
+    if category is None or not category.is_active or category.kind not in {models.TransactionKind.INCOME, models.TransactionKind.EXPENSE}:
+        raise domain.DomainError("La categoría de la regla no es válida")
+    rule = models.CategorizationRule(owner_id=domain.current_owner_id(db), **data.model_dump(), normalized_needle=domain.normalize_text(data.needle))
     db.add(rule)
     db.commit()
     db.refresh(rule)
@@ -422,7 +374,9 @@ def patch_rule(rule_id: int, data: schemas.RulePatch, db: Db) -> models.Categori
     rule = domain.get_or_404(db, models.CategorizationRule, rule_id)
     values = data.model_dump(exclude_unset=True)
     if "category_id" in values:
-        validate_rule_category(db, values["category_id"])
+        category = db.scalar(select(models.Category).where(models.Category.id == values["category_id"], domain.owner_clause(db, models.Category)))
+        if category is None or not category.is_active or category.kind not in {models.TransactionKind.INCOME, models.TransactionKind.EXPENSE}:
+            raise domain.DomainError("La categoría de la regla no es válida")
     for key, value in values.items():
         setattr(rule, key, value)
     if "needle" in values:
@@ -434,13 +388,13 @@ def patch_rule(rule_id: int, data: schemas.RulePatch, db: Db) -> models.Categori
 
 @router.get("/settings/monthly-budget", response_model=schemas.BudgetOut)
 def get_budget(currency: models.Currency, db: Db) -> schemas.BudgetOut:
-    budget = db.get(models.MonthlyBudget, currency)
+    budget = db.scalar(select(models.MonthlyBudget).where(models.MonthlyBudget.owner_id == domain.current_owner_id(db), models.MonthlyBudget.currency == currency))
     return schemas.BudgetOut(currency=currency, amount=budget.amount if budget else None)
 
 
 @router.put("/settings/monthly-budget", response_model=schemas.BudgetOut)
 def put_budget(currency: models.Currency, data: schemas.BudgetPut, db: Db) -> schemas.BudgetOut:
-    budget = db.get(models.MonthlyBudget, currency)
+    budget = db.scalar(select(models.MonthlyBudget).where(models.MonthlyBudget.owner_id == domain.current_owner_id(db), models.MonthlyBudget.currency == currency))
     if data.amount is None:
         if budget:
             db.delete(budget)
@@ -449,7 +403,7 @@ def put_budget(currency: models.Currency, data: schemas.BudgetPut, db: Db) -> sc
     if budget:
         budget.amount = data.amount
     else:
-        budget = models.MonthlyBudget(currency=currency, amount=data.amount)
+        budget = models.MonthlyBudget(owner_id=domain.current_owner_id(db), currency=currency, amount=data.amount)
         db.add(budget)
     db.commit()
     return schemas.BudgetOut(currency=currency, amount=budget.amount)
@@ -478,12 +432,10 @@ def get_import(batch_id: str, db: Db) -> models.ImportBatch:
 
 
 @router.patch("/imports/{batch_id}/rows/{row_id}", response_model=schemas.ImportRowOut)
-def patch_import_row(
-    batch_id: str, row_id: int, data: schemas.ImportRowPatch, db: Db
-) -> models.ImportRow:
+def patch_import_row(batch_id: str, row_id: int, data: schemas.ImportRowPatch, db: Db) -> models.ImportRow:
     batch = domain.get_or_404(db, models.ImportBatch, batch_id)
-    row = db.get(models.ImportRow, row_id)
-    if row is None or row.batch_id != batch.id:
+    row = db.scalar(select(models.ImportRow).where(models.ImportRow.id == row_id, models.ImportRow.batch_id == batch.id))
+    if row is None:
         raise domain.DomainError("Fila de importación no encontrada", 404)
     return imports.patch_import_row(db, batch, row, data)
 
@@ -499,14 +451,12 @@ def apply_patch(target: object, patch: BaseModel) -> None:
 
 
 def category_descendants(db: Session, category_id: int) -> list[int]:
-    if db.get(models.Category, category_id) is None:
+    if db.scalar(select(models.Category.id).where(models.Category.id == category_id, domain.owner_clause(db, models.Category))) is None:
         raise domain.DomainError("La categoría no existe", 404)
     ids = [category_id]
     cursor = 0
     while cursor < len(ids):
-        children = db.scalars(
-            select(models.Category.id).where(models.Category.parent_id == ids[cursor])
-        ).all()
+        children = db.scalars(select(models.Category.id).where(models.Category.parent_id == ids[cursor], domain.owner_clause(db, models.Category))).all()
         ids.extend(child for child in children if child not in ids)
         cursor += 1
     return ids

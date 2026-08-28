@@ -2,6 +2,12 @@ export type Currency = "UYU" | "USD" | "UI";
 export type CategoryKind = "income" | "expense";
 export type MovementKind = "income" | "expense" | "transfer";
 export type TransferPurpose = "regular" | "savings" | "investment";
+export interface AdminUser {
+  id: number;
+  email: string;
+  is_active: boolean;
+  is_admin: boolean;
+}
 export interface BalanceAdjustment {
   id: number;
   account_id: number;

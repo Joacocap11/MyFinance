@@ -6,6 +6,8 @@ from app.seed import seed
 
 
 def test_seed_is_idempotent_and_contains_required_spanish_categories(db: Session) -> None:
+    db.add(models.User(email="seed@example.com", password_hash="hash", is_admin=True))
+    db.commit()
     seed(db)
     first_count = db.scalar(select(func.count()).select_from(models.Category))
     seed(db)

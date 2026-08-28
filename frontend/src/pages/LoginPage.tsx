@@ -1,7 +1,7 @@
 import { Eye, EyeOff, LockKeyhole, Mail, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth";
 
@@ -72,6 +72,7 @@ export function LoginPage() {
             {submitting ? "Ingresando…" : "Iniciar sesión"}
           </button>
         </form>
+        <p className="login-intro"><Link to="/registro">¿Primera instalación? Crear usuario administrador</Link></p>
       </section>
     </main>
   );

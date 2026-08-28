@@ -10,6 +10,7 @@ import {
 import { AuthProvider, useAuth } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
 const DashboardPage = lazy(() =>
   import("./pages/DashboardPage").then(({ DashboardPage }) => ({
     default: DashboardPage,
@@ -80,6 +81,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
+  { path: "/registro", element: <RegisterPage /> },
   {
     path: "/",
     element: (

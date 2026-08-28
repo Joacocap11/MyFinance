@@ -1,8 +1,8 @@
 # MyFinance
 
-MyFinance es una aplicación personal para registrar ingresos y gastos y entender, en pocos segundos, en qué se fue el dinero. Está diseñada para una sola persona y prioriza el resumen mensual, las categorías, la comparación con el mes anterior, los mayores gastos y la importación segura de movimientos bancarios.
+MyFinance es una aplicación self-hosted para registrar ingresos y gastos y entender, en pocos segundos, en qué se fue el dinero. El resumen mensual, las categorías, la comparación con el mes anterior, los mayores gastos y la importación segura de movimientos bancarios funcionan por usuario autenticado.
 
-No es un ERP ni un sistema contable. No incluye conversiones de moneda, integraciones bancarias, inversiones, roles ni multi-tenancy.
+No es un ERP ni un sistema contable. No incluye conversiones de moneda, integraciones bancarias ni inversiones.
 
 ## Funcionalidades
 
@@ -158,7 +158,9 @@ Después de migrar:
 uv run python -m app.seed
 ```
 
-El seed puede ejecutarse varias veces sin duplicar datos. Crea `Cuenta principal`, las categorías personales iniciales, las subcategorías del auto y las categorías de ingreso.
+El seed es idempotente. En una instalación vacía no crea nada hasta que se registra el primer usuario; ese registro bootstrap crea el administrador, `Cuenta principal` y sus categorías. Los usuarios agregados por un administrador reciben las categorías iniciales, pero no cuentas financieras.
+
+La migración `20260829_0008_multi_user_ownership` agrega `users.is_admin` y `owner_id` a las tablas financieras. En una base histórica con exactamente un usuario, conserva todos los registros y los asigna a ese usuario; aborta de forma transaccional si hay datos personales sin un único propietario inequívoco. Respaldá PostgreSQL antes de aplicar migraciones sobre datos reales.
 
 Para generar una migración después de cambiar modelos:
 
@@ -188,19 +190,14 @@ uv run ruff format .
 uv run ruff check .
 uv run mypy app
 uv run pytest
-```
+## Autenticación y alcance multiusuario
 
-## Autenticación y evolución futura
+La primera instalación expone `POST /api/v1/auth/register` únicamente cuando no existe ningún usuario. Ese primer usuario es administrador. Después, solo un administrador puede crear usuarios desde Ajustes; no hay registro público abierto.
 
-La instalación mantiene por ahora un modelo single-user self-hosted: el usuario autenticado administra las cuentas financieras de toda la instalación. La evolución prevista del dominio es:
+Cada registro financiero tiene `owner_id` y todas las consultas, escrituras, importaciones, reportes y búsquedas se filtran por el usuario del JWT. `ImportRow` no duplica propietario: hereda el alcance de su `ImportBatch`. Las cuentas, categorías, reglas, recurrentes, presupuestos y movimientos de un usuario nunca aparecen en otro usuario.
 
-```text
-user
-  -> financial accounts
-  -> transactions
-```
+El administrador solo gestiona usuarios (alta, activación y permisos). No tiene acceso global a datos financieros. Las categorías iniciales se siembran por usuario; las cuentas no se comparten.
 
-En una futura fase multiusuario se agregará `owner_id` y el alcance por propietario en backend y base de datos. Esta fase no implementa esa migración.
 
 ## Frontend
 
@@ -263,11 +260,9 @@ Docker Compose:
 docker compose config
 ```
 
-Los tests cubren las reglas de movimientos y transferencias, dinero decimal, anulaciones, cálculos mensuales, categorías, reglas de categorización, importación CSV, deduplicación y aislamiento por moneda. El frontend cubre los flujos críticos de resumen, alta rápida, evidencia de movimientos e importación.
+Los tests cubren las reglas de movimientos y transferencias, dinero decimal, anulaciones, cálculos mensuales, categorías, reglas de categorización, importación CSV, deduplicación y aislamiento por moneda y usuario. El frontend cubre los flujos críticos de resumen, alta rápida, evidencia de movimientos, importación y administración de usuarios.
 ## Seguridad y límites actuales
-La instalación actual es `single-user self-hosted`: el usuario autenticado es el propietario de toda la instalación. Todas las rutas financieras requieren autenticación; health, login y refresh son públicos. El registro solo funciona para bootstrap cuando todavía no existe ningún usuario.
-
-Si en el futuro se habilita multiusuario habrá que incorporar `owner_id`, owner scope, migración histórica y tests de aislamiento. No forman parte del diseño actual.
+Todas las rutas financieras requieren autenticación; health, login y refresh son públicos. El registro solo funciona para bootstrap cuando todavía no existe ningún usuario. El administrador no obtiene acceso global a los datos financieros.
 
 - No se versionan secretos ni `.env`.
 - Los uploads CSV están limitados a 2 MiB y se validan en el servidor.

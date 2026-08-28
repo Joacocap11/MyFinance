@@ -1,5 +1,6 @@
 import type {
   Account,
+  AdminUser,
   ApiErrorBody,
   BalanceAdjustment,
   Category,
@@ -29,7 +30,7 @@ const API_BASE =
 type SessionTokens = {
   access_token: string;
   refresh_token: string;
-  user: { id: number; email: string };
+  user: { id: number; email: string; is_admin: boolean };
 };
 type Primitive = string | number | boolean | null | undefined;
 let session: SessionTokens | null = null;
@@ -122,6 +123,11 @@ function query(params: object): string {
 
 export const api = {
   auth: {
+    register: (email: string, password: string) =>
+      request<SessionTokens>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
     login: (email: string, password: string) =>
       request<SessionTokens>("/auth/login", {
         method: "POST",
@@ -133,6 +139,19 @@ export const api = {
         body: JSON.stringify({ refresh_token: refreshToken }),
       }),
     me: () => request<SessionTokens["user"]>("/auth/me"),
+  },
+  admin: {
+    users: () => request<AdminUser[]>("/admin/users"),
+    createUser: (input: { email: string; password: string; is_admin?: boolean }) =>
+      request<AdminUser>("/admin/users", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    updateUser: (id: number, input: Partial<Pick<AdminUser, "is_active" | "is_admin">>) =>
+      request<AdminUser>(`/admin/users/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
   },
   reports: {
     monthly: (month: string, currency: Currency, signal?: AbortSignal) =>

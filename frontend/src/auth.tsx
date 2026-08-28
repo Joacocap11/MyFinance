@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { ReactNode } from "react";
 import { api, setSession } from "./api/client";
 
-type User = { id: number; email: string };
+type User = { id: number; email: string; is_admin: boolean };
 type Session = {
   access_token: string;
   refresh_token: string;
@@ -14,6 +14,7 @@ type AuthContextValue = {
   session: Session | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -85,6 +86,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ready,
     async login(email, password) {
       const next = await api.auth.login(email.trim(), password);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setSession(next);
+      setStoredSession(next);
+      setReady(true);
+    },
+    async register(email, password) {
+      const next = await api.auth.register(email.trim(), password);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setSession(next);
       setStoredSession(next);

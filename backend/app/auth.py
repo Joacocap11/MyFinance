@@ -76,6 +76,13 @@ def current_user(authorization: Annotated[str | None, Header()] = None, db: Sess
     user = db.get(models.User, int(payload["sub"]))
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Usuario no disponible")
+    db.info["owner_id"] = user.id
+    return user
+
+
+def require_admin(user: CurrentUser) -> models.User:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Se requieren permisos de administrador")
     return user
 
 
