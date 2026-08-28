@@ -16,10 +16,19 @@ Un administrador entra en **Ajustes → Usuarios**, crea el usuario y define su 
 
 - Un administrador puede listar usuarios y activar o desactivar usuarios.
 - Un administrador no obtiene acceso global a cuentas, movimientos, reportes o importaciones ajenos.
+
 - Un usuario normal no puede listar, crear ni modificar usuarios.
 - El sistema impide quitarse permisos o desactivarse si eso dejaría cero administradores activos.
 - Un usuario inactivo no puede iniciar sesión ni renovar un refresh token.
 - El ownership se toma exclusivamente del JWT validado; `owner_id` no es un campo writable de los clientes.
+
+## Seguridad de credenciales
+
+Las contraseñas se almacenan únicamente como hashes `scrypt`, con salt aleatorio de 16 bytes y parámetros `n=2**14`, `r=8`, `p=1`. La política predeterminada exige `MIN_PASSWORD_LENGTH=10`; acepta passphrases largas y no impone combinaciones artificiales de caracteres.
+
+Cada usuario puede cambiar su contraseña desde **Ajustes → Seguridad** mediante `POST /api/v1/auth/change-password`. Se verifica la contraseña actual y se genera un hash nuevo. Tras el cambio, la sesión web se cierra y se debe iniciar sesión nuevamente.
+
+La implementación JWT actual no mantiene estado de revocación. Por lo tanto, tokens emitidos antes del cambio pueden continuar válidos hasta su expiración si se conservan fuera del cliente que cerró sesión. No se agregan Redis ni estado server-side en esta fase.
 
 ## Alcance actual
 

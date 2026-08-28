@@ -68,6 +68,13 @@ class UserCreate(BaseModel):
     is_admin: bool = False
 
 
+class PasswordChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=1)
+
+
 class UserPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

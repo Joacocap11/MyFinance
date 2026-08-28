@@ -1,3 +1,4 @@
+import * as SecureStore from "expo-secure-store";
 import { api, saveSession } from "./client";
 import type { Session } from "./types";
 
@@ -23,6 +24,12 @@ test("refreshes once and retries a protected request", async () => {
   await expect(api.transactions()).resolves.toMatchObject({ total: 0 });
   expect(fetchMock).toHaveBeenCalledTimes(3);
   fetchMock.mockRestore();
+});
+test("SecureStore contiene únicamente la sesión y no credenciales", async () => {
+  await saveSession(session);
+  expect(SecureStore.setItemAsync).toHaveBeenCalledWith("myfinance.session", JSON.stringify(session));
+  expect(JSON.stringify(session)).not.toContain("password");
+  expect(JSON.stringify(session)).not.toContain("password_hash");
 });
 
 test("sends transfer fields to the existing transactions endpoint", async () => {

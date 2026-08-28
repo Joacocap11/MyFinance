@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,8 +8,9 @@ import { SettingsPage } from "./SettingsPage";
 
 const login = vi.fn();
 const register = vi.fn();
+const logout = vi.fn();
 vi.mock("../auth", () => ({
-  useAuth: () => ({ login, register, ready: true, session: null }),
+  useAuth: () => ({ login, logout, register, ready: true, session: null }),
 }));
 
 function json(data: unknown, status = 200): Response {
@@ -102,6 +103,40 @@ describe("RegisterPage", () => {
     render(<MemoryRouter><RegisterPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getByRole("button", { name: "Crear cuenta" })).toBeDisabled());
     expect(screen.getByRole("link", { name: /Ya tengo cuenta/ })).toHaveAttribute("href", "/login");
+  });
+});
+
+describe("SecuritySettings", () => {
+  beforeEach(() => {
+    logout.mockReset();
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json({ detail: "Contraseña actualizada." }))));
+  });
+
+  async function openSecurity() {
+    const user = userEvent.setup();
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: /Seguridad/ }));
+    await screen.findByText("Cambiar contraseña");
+    return user;
+  }
+
+  it("valida confirmación de contraseña", async () => {
+    const user = await openSecurity();
+    await user.type(screen.getByLabelText("Contraseña actual"), "CurrentPassword");
+    await user.type(screen.getByLabelText(/^Nueva contraseña/), "NewPassword123");
+    await user.type(screen.getByLabelText("Confirmar nueva contraseña"), "Mismatch123");
+    fireEvent.submit(screen.getByRole("button", { name: "Guardar" }).closest("form")!);
+    expect(screen.getByRole("alert")).toHaveTextContent("no coinciden");
+  });
+
+  it("cambia la contraseña y no persiste passwords", async () => {
+    const user = await openSecurity();
+    await user.type(screen.getByLabelText("Contraseña actual"), "CurrentPassword");
+    await user.type(screen.getByLabelText(/^Nueva contraseña/), "NewPassword123");
+    await user.type(screen.getByLabelText("Confirmar nueva contraseña"), "NewPassword123");
+    fireEvent.submit(screen.getByRole("button", { name: "Guardar" }).closest("form")!);
+    expect(await screen.findByText("Contraseña actualizada.")).toBeInTheDocument();
+    expect(sessionStorage.getItem("myfinance.session")).toBeNull();
   });
 });
 

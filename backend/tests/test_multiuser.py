@@ -32,6 +32,10 @@ def test_admin_can_manage_users_and_regular_user_cannot(
     )
     assert created.status_code == 201
     assert created.json()["is_admin"] is False
+    assert "password_hash" not in created.text
+    listed = unauthenticated_client.get("/api/v1/admin/users")
+    assert listed.status_code == 200
+    assert "password_hash" not in listed.text
     regular = db.scalar(select(models.User).where(models.User.email == "user@example.com"))
     assert regular is not None
     use_user(unauthenticated_client, regular)

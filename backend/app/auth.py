@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -26,13 +27,22 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, encoded: str) -> bool:
     try:
-        _, salt_text, digest_text = encoded.split("$", 2)
+        algorithm, salt_text, digest_text = encoded.split("$", 2)
+        if algorithm != "scrypt":
+            return False
         salt = base64.urlsafe_b64decode(salt_text.encode())
         expected = base64.urlsafe_b64decode(digest_text.encode())
         actual = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
         return hmac.compare_digest(actual, expected)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, binascii.Error):
         return False
+
+
+def password_policy_error(password: str) -> str | None:
+    minimum = get_settings().min_password_length
+    if len(password) < minimum:
+        return f"La contraseña debe tener al menos {minimum} caracteres"
+    return None
 
 
 def _encode(payload: dict[str, object]) -> str:

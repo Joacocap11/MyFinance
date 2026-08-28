@@ -31,6 +31,11 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+def _validate_password(password: str) -> None:
+    if error := auth.password_policy_error(password):
+        raise domain.DomainError(error, 422)
+
+
 def _user_count_with_registration_lock(db: Session) -> int:
     if db.bind is not None and db.bind.dialect.name == "postgresql":
         db.execute(text("SELECT pg_advisory_xact_lock(184467440737095516)"))
@@ -60,8 +65,9 @@ def registration_status(db: Db) -> dict[str, int | bool]:
 @public_router.post("/auth/register", status_code=201)
 def register(data: AuthCredentials, db: Db) -> dict[str, object]:
     email = data.email.strip().lower()
-    if "@" not in email or not data.password:
+    if "@" not in email:
         raise domain.DomainError("Email y contraseña son obligatorios", 422)
+    _validate_password(data.password)
     current_users = _ensure_user_slot(db)
     user = models.User(
         email=email,
@@ -109,6 +115,16 @@ def me(user: auth.CurrentUser) -> dict[str, object]:
     return {"id": user.id, "email": user.email, "is_admin": user.is_admin}
 
 
+@router.post("/auth/change-password")
+def change_password(data: schemas.PasswordChange, db: Db, user: auth.CurrentUser) -> dict[str, str]:
+    if not auth.verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status_code=401, detail="La contraseña actual es incorrecta")
+    _validate_password(data.new_password)
+    user.password_hash = auth.hash_password(data.new_password)
+    db.commit()
+    return {"detail": "Contraseña actualizada. Iniciá sesión nuevamente."}
+
+
 @router.get(
     "/admin/users", response_model=list[schemas.UserOut], dependencies=[Depends(auth.require_admin)]
 )
@@ -128,6 +144,7 @@ def create_user(data: schemas.UserCreate, db: Db) -> models.User:
         raise domain.DomainError("Email inválido", 422)
     if db.scalar(select(models.User).where(models.User.email == email)):
         raise domain.DomainError("El email ya está registrado", 409)
+    _validate_password(data.password)
     _ensure_user_slot(db)
     user = models.User(
         email=email, password_hash=auth.hash_password(data.password), is_admin=data.is_admin

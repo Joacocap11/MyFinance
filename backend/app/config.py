@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     ]
     max_users: int = Field(default=5, ge=1)
     jwt_secret: str = "change-me-before-using-authentication"
+    min_password_length: int = Field(default=10, ge=1)
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 30
     log_level: str = "INFO"

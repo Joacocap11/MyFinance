@@ -146,6 +146,11 @@ export const api = {
         body: JSON.stringify({ refresh_token: refreshToken }),
       }),
     me: () => request<SessionTokens["user"]>("/auth/me"),
+    changePassword: (current_password: string, new_password: string) =>
+      request<{ detail: string }>("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ current_password, new_password }),
+      }),
   },
   admin: {
     users: () => request<AdminUser[]>("/admin/users"),
