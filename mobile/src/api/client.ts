@@ -62,6 +62,7 @@ export const api = {
   auth: {
     login: (email: string, password: string) => request<Session>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
     me: () => request<{ id: number; email: string }>("/auth/me"),
+    changePassword: (currentPassword: string, newPassword: string) => request<{ detail: string }>("/auth/change-password", { method: "POST", body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) }),
   },
   dashboard: (month: string, currency: "UYU" | "USD" | "UI") => request<MonthlyReport>(`/reports/monthly?month=${month}&currency=${currency}`),
   accounts: () => request<Account[]>("/settings/accounts"),
