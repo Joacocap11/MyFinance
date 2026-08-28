@@ -45,8 +45,22 @@ def semantic_fingerprint(
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def current_owner_id(db: Session) -> int:
+    owner_id = db.info.get("owner_id")
+    if not isinstance(owner_id, int):
+        raise DomainError("Autenticación requerida", 401)
+    return owner_id
+
+
+def owner_clause(db: Session, model: type[object]):
+    return model.owner_id == current_owner_id(db)  # type: ignore[attr-defined]
+
+
 def get_or_404[T: Base](db: Session, model: type[T], object_id: int | str) -> T:
-    value = db.get(model, object_id)
+    if hasattr(model, "owner_id"):
+        value = db.scalar(select(model).where(model.id == object_id, owner_clause(db, model)))
+    else:
+        value = db.get(model, object_id)
     if value is None:
         raise DomainError("Recurso no encontrado", 404)
     return value
@@ -61,7 +75,12 @@ def validate_category(
 ) -> models.Category | None:
     if category_id is None:
         return None
-    category = db.get(models.Category, category_id)
+    category = db.scalar(
+        select(models.Category).where(
+            models.Category.id == category_id,
+            owner_clause(db, models.Category),
+        )
+    )
     if category is None:
         raise DomainError("La categoría no existe")
     if category.kind != kind:
@@ -87,19 +106,36 @@ def validate_category_parent(
         if cursor.id == category_id or cursor.id in seen:
             raise DomainError("La jerarquía de categorías no puede contener ciclos")
         seen.add(cursor.id)
-        cursor = db.get(models.Category, cursor.parent_id) if cursor.parent_id else None
+        cursor = (
+            db.scalar(
+                select(models.Category).where(
+                    models.Category.id == cursor.parent_id,
+                    owner_clause(db, models.Category),
+                )
+            )
+            if cursor.parent_id
+            else None
+        )
 
 
 def match_rule(db: Session, description: str, kind: models.TransactionKind) -> int | None:
     normalized = normalize_text(description)
     rules = db.scalars(
         select(models.CategorizationRule)
-        .where(models.CategorizationRule.is_active.is_(True))
+        .where(
+            models.CategorizationRule.is_active.is_(True),
+            owner_clause(db, models.CategorizationRule),
+        )
         .order_by(models.CategorizationRule.priority, models.CategorizationRule.id)
     )
     for rule in rules:
         if rule.normalized_needle in normalized:
-            category = db.get(models.Category, rule.category_id)
+            category = db.scalar(
+                select(models.Category).where(
+                    models.Category.id == rule.category_id,
+                    owner_clause(db, models.Category),
+                )
+            )
             if category and category.is_active and category.kind == kind:
                 return category.id
     return None
@@ -115,7 +151,12 @@ def validate_transaction_values(
     destination_amount: Decimal | None,
     category_id: int | None,
 ) -> int | None:
-    account = db.get(models.Account, account_id)
+    account = db.scalar(
+        select(models.Account).where(
+            models.Account.id == account_id,
+            owner_clause(db, models.Account),
+        )
+    )
     if account is None or not account.is_active:
         raise DomainError("La cuenta de origen no existe o está inactiva")
     if kind == models.TransactionKind.TRANSFER:
@@ -123,7 +164,12 @@ def validate_transaction_values(
             raise DomainError("Una transferencia requiere destino y no admite categoría")
         if destination_account_id == account_id:
             raise DomainError("Las cuentas de una transferencia deben ser distintas")
-        destination = db.get(models.Account, destination_account_id)
+        destination = db.scalar(
+            select(models.Account).where(
+                models.Account.id == destination_account_id,
+                owner_clause(db, models.Account),
+            )
+        )
         if destination is None or not destination.is_active:
             raise DomainError("La cuenta de destino no existe o está inactiva")
         if destination_amount is None:
@@ -136,14 +182,30 @@ def validate_transaction_values(
         raise DomainError("Solo una transferencia admite cuenta destino y monto recibido")
     validate_category(db, category_id, kind)
     return category_id
+
+
 def create_transaction(db: Session, data: schemas.TransactionCreate) -> models.Transaction:
     category_id = data.category_id
     if category_id is None and data.kind != models.TransactionKind.TRANSFER:
         category_id = match_rule(db, data.description, data.kind)
     destination_amount = data.destination_amount
     if data.kind == models.TransactionKind.TRANSFER and destination_amount is None:
-        source = db.get(models.Account, data.account_id)
-        destination = db.get(models.Account, data.destination_account_id)
+        source = db.scalar(
+            select(models.Account).where(
+                models.Account.id == data.account_id,
+                owner_clause(db, models.Account),
+            )
+        )
+        destination = (
+            db.scalar(
+                select(models.Account).where(
+                    models.Account.id == data.destination_account_id,
+                    owner_clause(db, models.Account),
+                )
+            )
+            if data.destination_account_id is not None
+            else None
+        )
         if source and destination and source.currency == destination.currency:
             destination_amount = data.amount
     validate_transaction_values(
@@ -156,6 +218,7 @@ def create_transaction(db: Session, data: schemas.TransactionCreate) -> models.T
         category_id=category_id,
     )
     transaction = models.Transaction(
+        owner_id=current_owner_id(db),
         **data.model_dump(exclude={"category_id", "destination_amount"}),
         destination_amount=destination_amount,
         category_id=category_id,
@@ -185,9 +248,7 @@ def patch_transaction(
     destination_account_id = values.get(
         "destination_account_id", transaction.destination_account_id
     )
-    destination_amount = values.get(
-        "destination_amount", transaction.destination_amount
-    )
+    destination_amount = values.get("destination_amount", transaction.destination_amount)
     category_id = values.get("category_id", transaction.category_id)
     validate_transaction_values(
         db,
@@ -220,9 +281,7 @@ def void_transaction(db: Session, transaction: models.Transaction) -> models.Tra
     return transaction
 
 
-def account_balance(
-    db: Session, account: models.Account, as_of: date | None = None
-) -> Decimal:
+def account_balance(db: Session, account: models.Account, as_of: date | None = None) -> Decimal:
     as_of = as_of or date.today()
     incoming = case(
         (
@@ -252,6 +311,7 @@ def account_balance(
     )
     movement = db.scalar(
         select(func.coalesce(func.sum(incoming - outgoing), 0)).where(
+            models.Transaction.owner_id == account.owner_id,
             models.Transaction.voided_at.is_(None),
             models.Transaction.date <= as_of,
             or_(
@@ -262,16 +322,21 @@ def account_balance(
     )
     adjustments = db.scalar(
         select(func.coalesce(func.sum(models.BalanceAdjustment.amount), 0)).where(
+            models.BalanceAdjustment.owner_id == account.owner_id,
             models.BalanceAdjustment.account_id == account.id,
             models.BalanceAdjustment.date <= as_of,
         )
     )
     return account.opening_balance + Decimal(movement or 0) + Decimal(adjustments or 0)
 
+
 def account_out(db: Session, account: models.Account) -> schemas.AccountOut:
     adjustments = db.scalars(
         select(models.BalanceAdjustment)
-        .where(models.BalanceAdjustment.account_id == account.id)
+        .where(
+            models.BalanceAdjustment.owner_id == account.owner_id,
+            models.BalanceAdjustment.account_id == account.id,
+        )
         .order_by(models.BalanceAdjustment.date.desc(), models.BalanceAdjustment.id.desc())
     ).all()
     return schemas.AccountOut(
@@ -283,6 +348,3 @@ def account_out(db: Session, account: models.Account) -> schemas.AccountOut:
         is_active=account.is_active,
         adjustments=[schemas.BalanceAdjustmentOut.model_validate(item) for item in adjustments],
     )
-
-
- 

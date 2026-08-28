@@ -1,8 +1,8 @@
 # MyFinance
 
-MyFinance es una aplicación personal para registrar ingresos y gastos y entender, en pocos segundos, en qué se fue el dinero. Está diseñada para una sola persona y prioriza el resumen mensual, las categorías, la comparación con el mes anterior, los mayores gastos y la importación segura de movimientos bancarios.
+MyFinance es una aplicación self-hosted para registrar ingresos y gastos y entender, en pocos segundos, en qué se fue el dinero. El resumen mensual, las categorías, la comparación con el mes anterior, los mayores gastos y la importación segura de movimientos bancarios funcionan por usuario autenticado.
 
-No es un ERP ni un sistema contable. No incluye conversiones de moneda, integraciones bancarias, inversiones, roles ni multi-tenancy.
+No es un ERP ni un sistema contable. No incluye conversiones de moneda, integraciones bancarias ni inversiones.
 
 ## Funcionalidades
 
@@ -93,11 +93,9 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Servicios:
-
-- Aplicación: `http://localhost:3000`
-- API: `http://localhost:8000`
-- PostgreSQL: `127.0.0.1:5432`
+- Aplicación web: `http://localhost:3000`
+- API (solo desarrollo local): `http://localhost:8000`
+- PostgreSQL: no tiene puerto publicado; solo `backend` accede a `db:5432`.
 
 El backend espera el healthcheck de PostgreSQL, aplica las migraciones y ejecuta el seed idempotente antes de iniciar. Los datos quedan en el volumen `postgres_data`.
 
@@ -124,14 +122,18 @@ Copia `.env.example` a `.env`; `.env` está excluido de Git.
 | `COMPOSE_PROJECT_NAME` | Nombre del proyecto Compose | `myfinance` |
 | `POSTGRES_DB` | Base PostgreSQL | `myfinance` |
 | `POSTGRES_USER` | Usuario PostgreSQL local | `myfinance` |
-| `POSTGRES_PASSWORD` | Contraseña PostgreSQL | placeholder de desarrollo |
-| `POSTGRES_PORT` | Puerto local de PostgreSQL | `5432` |
+| `POSTGRES_PASSWORD` | Contraseña PostgreSQL | obligatorio |
+| `DATABASE_URL` | URL SQLAlchemy del backend | `postgresql+psycopg://...@db:5432/...` |
+| `JWT_SECRET` | Firma de tokens | obligatorio |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Duración del access token | `30` |
+| `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | Duración del refresh token | `30` |
 | `BACKEND_PORT` | Puerto local de FastAPI | `8000` |
 | `FRONTEND_PORT` | Puerto local de nginx | `3000` |
+| `VITE_API_BASE_URL` | Base API compilada en frontend | `/api/v1` |
 | `CORS_ORIGINS` | Orígenes web permitidos, en JSON | `["http://localhost:3000","http://127.0.0.1:3000"]` |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
 
-Fuera de Compose, el backend también admite `DATABASE_URL`. Si no está definida usa `sqlite:///./myfinance.db`.
+Fuera de Compose, el backend admite PostgreSQL o SQLite para desarrollo/tests. Si no se define `DATABASE_URL`, usa `sqlite:///./myfinance.db`.
 
 Ejemplo PostgreSQL:
 
@@ -156,7 +158,9 @@ Después de migrar:
 uv run python -m app.seed
 ```
 
-El seed puede ejecutarse varias veces sin duplicar datos. Crea `Cuenta principal`, las categorías personales iniciales, las subcategorías del auto y las categorías de ingreso.
+El seed es idempotente. En una instalación vacía no crea nada hasta que se registra el primer usuario; ese registro bootstrap crea el administrador, `Cuenta principal` y sus categorías. Los usuarios agregados por un administrador reciben las categorías iniciales, pero no cuentas financieras.
+
+La migración `20260829_0008_multi_user_ownership` agrega `users.is_admin` y `owner_id` a las tablas financieras. En una base histórica con exactamente un usuario, conserva todos los registros y los asigna a ese usuario; aborta de forma transaccional si hay datos personales sin un único propietario inequívoco. Respaldá PostgreSQL antes de aplicar migraciones sobre datos reales.
 
 Para generar una migración después de cambiar modelos:
 
@@ -186,7 +190,14 @@ uv run ruff format .
 uv run ruff check .
 uv run mypy app
 uv run pytest
-```
+## Autenticación y alcance multiusuario
+
+La primera instalación expone `POST /api/v1/auth/register` únicamente cuando no existe ningún usuario. Ese primer usuario es administrador. Después, solo un administrador puede crear usuarios desde Ajustes; no hay registro público abierto.
+
+Cada registro financiero tiene `owner_id` y todas las consultas, escrituras, importaciones, reportes y búsquedas se filtran por el usuario del JWT. `ImportRow` no duplica propietario: hereda el alcance de su `ImportBatch`. Las cuentas, categorías, reglas, recurrentes, presupuestos y movimientos de un usuario nunca aparecen en otro usuario.
+
+El administrador solo gestiona usuarios (alta, activación y permisos). No tiene acceso global a datos financieros. Las categorías iniciales se siembran por usuario; las cuentas no se comparten.
+
 
 ## Frontend
 
@@ -249,13 +260,14 @@ Docker Compose:
 docker compose config
 ```
 
-Los tests cubren las reglas de movimientos y transferencias, dinero decimal, anulaciones, cálculos mensuales, categorías, reglas de categorización, importación CSV, deduplicación y aislamiento por moneda. El frontend cubre los flujos críticos de resumen, alta rápida, evidencia de movimientos e importación.
-
+Los tests cubren las reglas de movimientos y transferencias, dinero decimal, anulaciones, cálculos mensuales, categorías, reglas de categorización, importación CSV, deduplicación y aislamiento por moneda y usuario. El frontend cubre los flujos críticos de resumen, alta rápida, evidencia de movimientos, importación y administración de usuarios.
 ## Seguridad y límites actuales
+Todas las rutas financieras requieren autenticación; health, login y refresh son públicos. El registro solo funciona para bootstrap cuando todavía no existe ningún usuario. El administrador no obtiene acceso global a los datos financieros.
 
 - No se versionan secretos ni `.env`.
 - Los uploads CSV están limitados a 2 MiB y se validan en el servidor.
 - SQLAlchemy usa consultas parametrizadas y Pydantic valida entradas.
 - Las escrituras con un encabezado `Origin` ajeno a `CORS_ORIGINS` se rechazan antes de llegar a los handlers.
-- MyFinance no incorpora autenticación porque está pensada para uso personal local. Los puertos de Compose se publican solo en `127.0.0.1`; no expongas la aplicación directamente a Internet.
+- La autenticación expone registro inicial, login, refresh y `/auth/me`; usar un `JWT_SECRET` aleatorio fuera de desarrollo.
+- PostgreSQL no se publica en Compose; el acceso remoto esperado es mediante la red privada/WireGuard.
 - UYU y USD se reportan por separado. No existen conversiones automáticas ni transferencias entre monedas.

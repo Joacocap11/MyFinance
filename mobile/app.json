@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "MyFinance",
+    "slug": "myfinance",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "myfinance",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-asset"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.myfinance.mobile"
+    }
+  }
+}

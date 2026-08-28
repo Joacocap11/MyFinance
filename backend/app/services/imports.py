@@ -16,8 +16,10 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.services.domain import (
     DomainError,
+    current_owner_id,
     match_rule,
     normalize_text,
+    owner_clause,
     semantic_fingerprint,
     validate_category,
 )
@@ -53,6 +55,7 @@ def create_upload(db: Session, filename: str, content: bytes) -> models.ImportBa
     text, headers, rows = decode_csv(content)
     batch = models.ImportBatch(
         id=str(uuid4()),
+        owner_id=current_owner_id(db),
         filename=filename,
         state=models.ImportState.UPLOADED,
         content=text,
@@ -221,7 +224,12 @@ def preview_import(
 ) -> models.ImportBatch:
     if batch.state == models.ImportState.CONFIRMED:
         raise DomainError("Una importación confirmada no puede modificarse", 409)
-    account = db.get(models.Account, request.account_id)
+    account = db.scalar(
+        select(models.Account).where(
+            models.Account.id == request.account_id,
+            owner_clause(db, models.Account),
+        )
+    )
     if account is None or not account.is_active:
         raise DomainError("La cuenta no existe o está inactiva")
     mapping = {
@@ -282,12 +290,18 @@ def preview_import(
             amount=amount,
             kind=kind,
         )
-        exact = db.scalar(select(models.Transaction).where(models.Transaction.origin_key == origin))
+        exact = db.scalar(
+            select(models.Transaction).where(
+                models.Transaction.origin_key == origin,
+                owner_clause(db, models.Transaction),
+            )
+        )
         collision = db.scalar(
             select(models.Transaction.id)
             .where(
                 models.Transaction.semantic_fingerprint == semantic,
                 models.Transaction.voided_at.is_(None),
+                owner_clause(db, models.Transaction),
             )
             .limit(1)
         )
@@ -350,7 +364,12 @@ def patch_import_row(
 
 def confirm_import(db: Session, batch_id: str) -> schemas.ImportConfirmOut:
     batch = db.scalar(
-        select(models.ImportBatch).where(models.ImportBatch.id == batch_id).with_for_update()
+        select(models.ImportBatch)
+        .where(
+            models.ImportBatch.id == batch_id,
+            owner_clause(db, models.ImportBatch),
+        )
+        .with_for_update()
     )
     if batch is None:
         raise DomainError("Importación no encontrada", 404)
@@ -359,7 +378,12 @@ def confirm_import(db: Session, batch_id: str) -> schemas.ImportConfirmOut:
     if batch.state == models.ImportState.CONFIRMED:
         return confirm_result(batch)
     assert batch.account_id is not None
-    account = db.get(models.Account, batch.account_id)
+    account = db.scalar(
+        select(models.Account).where(
+            models.Account.id == batch.account_id,
+            owner_clause(db, models.Account),
+        )
+    )
     if account is None or not account.is_active:
         raise DomainError("La cuenta no existe o está inactiva", 409)
     try:
@@ -370,13 +394,17 @@ def confirm_import(db: Session, batch_id: str) -> schemas.ImportConfirmOut:
                 raise DomainError("Una fila inválida no se puede importar", 409)
             validate_category(db, row.category_id, row.kind)
             exact = db.scalar(
-                select(models.Transaction).where(models.Transaction.origin_key == row.origin_key)
+                select(models.Transaction).where(
+                    models.Transaction.origin_key == row.origin_key,
+                    owner_clause(db, models.Transaction),
+                )
             )
             if exact:
                 row.disposition = models.ImportDisposition.SKIP
                 row.transaction_id = exact.id
                 continue
             transaction = models.Transaction(
+                owner_id=current_owner_id(db),
                 date=row.date,
                 kind=row.kind,
                 amount=row.amount,

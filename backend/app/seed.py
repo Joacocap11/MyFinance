@@ -35,24 +35,46 @@ def category(
     kind: models.TransactionKind,
     parent_id: int | None = None,
 ) -> models.Category:
+    owner_id = db.info.get("owner_id")
+    if owner_id is None:
+        owner_id = db.scalar(select(models.User.id).order_by(models.User.id))
+    if owner_id is None:
+        raise RuntimeError("No se puede ejecutar seed sin un usuario inicial")
     item = db.scalar(
         select(models.Category).where(
+            models.Category.owner_id == owner_id,
             models.Category.name == name,
             models.Category.kind == kind,
             models.Category.parent_id == parent_id,
         )
     )
     if item is None:
-        item = models.Category(name=name, kind=kind, parent_id=parent_id, is_active=True)
+        item = models.Category(
+            owner_id=owner_id, name=name, kind=kind, parent_id=parent_id, is_active=True
+        )
         db.add(item)
         db.flush()
     return item
 
 
-def seed(db: Session) -> None:
-    if db.scalar(select(models.Account).where(models.Account.name == "Cuenta principal")) is None:
+def seed(db: Session, owner_id: int | None = None, *, create_account: bool = True) -> None:
+    owner_id = owner_id or db.scalar(select(models.User.id).order_by(models.User.id))
+    if owner_id is None:
+        return
+    db.info["owner_id"] = owner_id
+    if (
+        create_account
+        and db.scalar(
+            select(models.Account).where(
+                models.Account.owner_id == owner_id,
+                models.Account.name == "Cuenta principal",
+            )
+        )
+        is None
+    ):
         db.add(
             models.Account(
+                owner_id=owner_id,
                 name="Cuenta principal",
                 currency=models.Currency.UYU,
                 opening_balance=0,

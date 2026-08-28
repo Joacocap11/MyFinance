@@ -5,9 +5,10 @@ from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from app.api import router
+from app.api import public_router, router
 from app.config import get_settings
 
 settings = get_settings()
@@ -26,6 +27,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(public_router)
 app.include_router(router)
 
 
@@ -58,8 +60,8 @@ async def log_requests(
 
 
 @app.exception_handler(IntegrityError)
-async def integrity_error(_: Request, exc: IntegrityError) -> JSONResponse:
-    logger.warning("Database constraint rejected request: %s", exc.orig)
+async def integrity_error(_: Request, _exc: IntegrityError) -> JSONResponse:
+    logger.warning("Database constraint rejected request")
     return JSONResponse(
         status_code=409, content={"detail": "El recurso entra en conflicto con datos existentes"}
     )
@@ -67,4 +69,11 @@ async def integrity_error(_: Request, exc: IntegrityError) -> JSONResponse:
 
 @app.get("/api/v1/health")
 def health() -> dict[str, str]:
+    from app.db import SessionLocal
+
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
     return {"status": "ok"}

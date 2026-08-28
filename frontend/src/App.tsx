@@ -1,7 +1,16 @@
 import { lazy, Suspense } from "react";
 import type { ReactNode } from "react";
-import { createBrowserRouter, Link, RouterProvider } from "react-router-dom";
+import {
+  createBrowserRouter,
+  Link,
+  Navigate,
+  RouterProvider,
+  useLocation,
+} from "react-router-dom";
+import { AuthProvider, useAuth } from "./auth";
 import { AppShell } from "./components/AppShell";
+import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
 const DashboardPage = lazy(() =>
   import("./pages/DashboardPage").then(({ DashboardPage }) => ({
     default: DashboardPage,
@@ -44,6 +53,7 @@ function DeferredPage({ children }: { children: ReactNode }) {
             aria-label="Cargando página"
           >
             <div className="skeleton" />
+
             <div className="skeleton" />
             <span className="sr-only">Cargando página</span>
           </div>
@@ -54,11 +64,31 @@ function DeferredPage({ children }: { children: ReactNode }) {
     </Suspense>
   );
 }
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { session, ready } = useAuth();
+  const location = useLocation();
+  if (!ready)
+    return (
+      <div className="page">
+        <div className="state" role="status">
+          <span className="inline-loading">Validando sesión…</span>
+        </div>
+      </div>
+    );
+  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  return children;
+}
 
 const router = createBrowserRouter([
+  { path: "/login", element: <LoginPage /> },
+  { path: "/register", element: <RegisterPage /> },
   {
     path: "/",
-    element: <AppShell />,
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
     children: [
       {
         index: true,
@@ -127,7 +157,10 @@ const router = createBrowserRouter([
     ],
   },
 ]);
-
 export function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  );
 }

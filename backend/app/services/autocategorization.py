@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import models
-from app.services.domain import normalize_text
+from app.services.domain import normalize_text, owner_clause
 
 
 @dataclass(frozen=True)
@@ -18,13 +18,19 @@ class Suggestion:
 def suggestions(db: Session) -> list[Suggestion]:
     examples = defaultdict(set)
     for row in db.scalars(
-        select(models.Transaction).where(models.Transaction.category_id.is_not(None))
+        select(models.Transaction).where(
+            models.Transaction.category_id.is_not(None),
+            owner_clause(db, models.Transaction),
+        )
     ):
         if row.category_id is not None:
             examples[(normalize_text(row.description), row.kind)].add(row.category_id)
     result = []
     for row in db.scalars(
-        select(models.Transaction).where(models.Transaction.category_id.is_(None))
+        select(models.Transaction).where(
+            models.Transaction.category_id.is_(None),
+            owner_clause(db, models.Transaction),
+        )
     ):
         if row.kind == models.TransactionKind.TRANSFER:
             continue

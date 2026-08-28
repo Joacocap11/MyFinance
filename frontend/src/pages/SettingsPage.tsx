@@ -7,14 +7,17 @@ import {
   ListRestart,
   Pencil,
   Plus,
+  ShieldCheck,
   Tags,
   Trash2,
+  UserRound,
   WalletCards,
 } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
+import { useAuth } from "../auth";
 import type {
   Account,
   Category,
@@ -40,7 +43,13 @@ import { categoryPath, formatMoney, sortCategories } from "../lib/format";
 import { useRequest } from "../lib/useRequest";
 
 type SettingsSection =
-  "accounts" | "categories" | "rules" | "recurring" | "budget";
+  | "accounts"
+  | "categories"
+  | "rules"
+  | "recurring"
+  | "budget"
+  | "security"
+  | "users";
 
 const sectionNavigation: Array<{
   id: SettingsSection;
@@ -52,12 +61,18 @@ const sectionNavigation: Array<{
   { id: "rules", label: "Reglas", icon: Tags },
   { id: "recurring", label: "Gastos recurrentes", icon: CalendarClock },
   { id: "budget", label: "Presupuesto", icon: Banknote },
+  { id: "security", label: "Seguridad", icon: ShieldCheck },
+  { id: "users", label: "Usuarios", icon: UserRound },
 ];
 
 export function SettingsPage() {
+  const { session } = useAuth();
+  const visibleSections = sectionNavigation.filter(
+    (item) => item.id !== "users" || session?.user.is_admin,
+  );
   const [search, setSearch] = useSearchParams();
   const rawSection = search.get("section");
-  const section: SettingsSection = sectionNavigation.some(
+  const section: SettingsSection = visibleSections.some(
     (item) => item.id === rawSection,
   )
     ? (rawSection as SettingsSection)
@@ -76,7 +91,7 @@ export function SettingsPage() {
       />
       <div className="settings-layout">
         <nav className="settings-nav" aria-label="Secciones de ajustes">
-          {sectionNavigation.map(({ id, label, icon: Icon }) => (
+          {visibleSections.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
@@ -95,9 +110,77 @@ export function SettingsPage() {
           {section === "rules" ? <RulesSettings /> : null}
           {section === "recurring" ? <RecurringSettings /> : null}
           {section === "budget" ? <BudgetSettings /> : null}
+          {section === "security" ? <SecuritySettings /> : null}
+          {section === "users" && session?.user.is_admin ? <UsersSettings /> : null}
         </section>
+
       </div>
     </div>
+  );
+}
+function SecuritySettings() {
+  const { logout } = useAuth();
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const current = formText(data, "current_password");
+    const next = formText(data, "new_password");
+    if (next !== formText(data, "confirm_password")) {
+      setError("Las contraseñas nuevas no coinciden");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await api.auth.changePassword(current, next);
+      setSuccess(response.detail);
+      event.currentTarget.reset();
+      void logout();
+    } catch (reason) {
+      setError(messageOf(reason));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <SettingsHeading
+        title="Seguridad"
+        description="Actualizá tu contraseña. Después tendrás que volver a iniciar sesión."
+      />
+      {error ? <ErrorState compact message={error} /> : null}
+      {success ? <p className="state state--success" role="status">{success}</p> : null}
+      <form className="settings-form" onSubmit={(event) => void save(event)}>
+        <h3>Cambiar contraseña</h3>
+        <Field label="Contraseña actual">
+          <Input name="current_password" type={showCurrent ? "text" : "password"} required autoComplete="current-password" />
+          <Button type="button" variant="quiet" onClick={() => setShowCurrent((value) => !value)}>
+            {showCurrent ? "Ocultar" : "Mostrar"}
+          </Button>
+        </Field>
+        <Field label="Nueva contraseña" hint="Mínimo 10 caracteres">
+          <Input name="new_password" type={showNew ? "text" : "password"} minLength={10} required autoComplete="new-password" />
+          <Button type="button" variant="quiet" onClick={() => setShowNew((value) => !value)}>
+            {showNew ? "Ocultar" : "Mostrar"}
+          </Button>
+        </Field>
+        <Field label="Confirmar nueva contraseña">
+          <Input name="confirm_password" type={showConfirmation ? "text" : "password"} minLength={10} required autoComplete="new-password" />
+          <Button type="button" variant="quiet" onClick={() => setShowConfirmation((value) => !value)}>
+            {showConfirmation ? "Ocultar" : "Mostrar"}
+          </Button>
+        </Field>
+        <FormActions saving={saving} cancel={() => undefined} />
+      </form>
+    </>
   );
 }
 
@@ -130,7 +213,6 @@ function AccountsSettings() {
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
-    setError(null);
     const data = new FormData(event.currentTarget);
     try {
       if (editing === "new")
@@ -366,6 +448,74 @@ function AccountsSettings() {
             description="Creá una para empezar a registrar movimientos."
           />
         )
+      ) : null}
+    </>
+  );
+}
+
+function UsersSettings() {
+  const state = useRequest(() => api.admin.users(), []);
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const password = formText(data, "password");
+    if (password !== formText(data, "confirm_password")) {
+      setError("Las contraseñas no coinciden");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await api.admin.createUser({ email: formText(data, "email"), password });
+      setCreating(false);
+      state.retry();
+    } catch (reason) {
+      setError(messageOf(reason));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const toggle = async (user: { id: number; is_active: boolean }) => {
+    try {
+      await api.admin.updateUser(user.id, { is_active: !user.is_active });
+      state.retry();
+    } catch (reason) {
+      setError(messageOf(reason));
+    }
+  };
+  return (
+    <>
+      <SettingsHeading
+        title="Usuarios"
+        description="Administrá el acceso sin mezclar datos financieros entre usuarios."
+        action={<Button onClick={() => setCreating(true)}><Plus size={16} /> Nuevo usuario</Button>}
+      />
+      {error ? <ErrorState compact message={error} /> : null}
+      {creating ? (
+        <form className="settings-form" onSubmit={(event) => void save(event)}>
+          <h3>Nuevo usuario</h3>
+          <Field label="Email"><Input name="email" type="email" required autoFocus /></Field>
+          <Field label="Contraseña inicial"><Input name="password" type="password" required minLength={10} autoComplete="new-password" /></Field>
+          <Field label="Confirmar contraseña"><Input name="confirm_password" type="password" required minLength={10} autoComplete="new-password" /></Field>
+          <FormActions saving={saving} cancel={() => setCreating(false)} />
+        </form>
+      ) : null}
+      {state.data ? (
+        <div className="settings-list">
+          {state.data.map((user) => (
+            <article key={user.id}>
+              <div className="settings-list__icon"><UserRound /></div>
+              <div><strong>{user.email}</strong><span>{user.is_admin ? "Administrador" : "Usuario"} · {user.is_active ? "Activo" : "Inactivo"}</span></div>
+              <StatusPill tone={user.is_active ? "success" : "neutral"}>{user.is_active ? "Activo" : "Inactivo"}</StatusPill>
+              <div className="row-actions">
+                <Button variant="quiet" onClick={() => void toggle(user)}>{user.is_active ? "Desactivar" : "Activar"}</Button>
+              </div>
+            </article>
+          ))}
+        </div>
       ) : null}
     </>
   );

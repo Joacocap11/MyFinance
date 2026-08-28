@@ -55,7 +55,35 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserOut(ORMModel):
+    id: int
+    email: str
+    is_active: bool
+    is_admin: bool
+
+
+class UserCreate(BaseModel):
+    email: str
+    password: str = Field(min_length=1)
+    is_admin: bool = False
+
+
+class PasswordChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=1)
+
+
+class UserPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    is_active: bool | None = None
+    is_admin: bool | None = None
+
+
 class AccountCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=100)
     currency: Currency
     opening_balance: SignedMoney = Decimal("0")
@@ -69,11 +97,10 @@ class AccountPatch(BaseModel):
 
 
 class BalanceAdjustmentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     actual_balance: SignedMoney
     date: Date = Field(default_factory=Date.today)
-    note: str = Field(
-        default="Conciliación con saldo bancario", min_length=1, max_length=240
-    )
+    note: str = Field(default="Conciliación con saldo bancario", min_length=1, max_length=240)
 
 
 class BalanceAdjustmentOut(ORMModel):
@@ -84,6 +111,7 @@ class BalanceAdjustmentOut(ORMModel):
     note: str
     created_at: datetime
 
+
 class AccountOut(ORMModel):
     id: int
     name: str
@@ -92,6 +120,7 @@ class AccountOut(ORMModel):
     current_balance: Decimal
     is_active: bool
     adjustments: list[BalanceAdjustmentOut] = Field(default_factory=list)
+
 
 class ReconciliationOut(BaseModel):
     account: AccountOut
@@ -102,12 +131,14 @@ class ReconciliationOut(BaseModel):
 
 
 class CategoryCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=100)
     kind: Literal[TransactionKind.INCOME, TransactionKind.EXPENSE]
     parent_id: int | None = None
 
 
 class CategoryPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = Field(None, min_length=1, max_length=100)
     parent_id: int | None = None
     is_active: bool | None = None
@@ -119,7 +150,10 @@ class CategoryOut(ORMModel):
     kind: TransactionKind
     parent_id: int | None
     is_active: bool
+
+
 class TransactionBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     date: Date
     kind: TransactionKind
     amount: Money
@@ -146,6 +180,7 @@ class TransactionCreate(TransactionBase):
 
 
 class TransactionPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     date: Date | None = None
     kind: TransactionKind | None = None
     amount: Money | None = None
@@ -197,6 +232,7 @@ class CategorizationPreview(BaseModel):
 
 
 class RecurringCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     description: str = Field(min_length=1, max_length=240)
     amount: Money
     day_of_month: int = Field(ge=1, le=31)
@@ -205,6 +241,7 @@ class RecurringCreate(BaseModel):
 
 
 class RecurringPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     description: str | None = Field(None, min_length=1, max_length=240)
     amount: Money | None = None
     day_of_month: int | None = Field(None, ge=1, le=31)
@@ -224,12 +261,14 @@ class RecurringOut(ORMModel):
 
 
 class RuleCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     needle: Needle
     category_id: int
     priority: int = 100
 
 
 class RulePatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     needle: Needle | None = None
     category_id: int | None = None
     priority: int | None = None
@@ -245,6 +284,7 @@ class RuleOut(ORMModel):
 
 
 class BudgetPut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     amount: Money | None
 
 
@@ -318,6 +358,7 @@ class ImportUploadOut(ORMModel):
 
 
 class ImportMapping(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     date: str
     description: str
     amount: str | None = None
@@ -335,6 +376,7 @@ class ImportMapping(BaseModel):
 
 
 class ImportPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     account_id: int
     mapping: ImportMapping
 
@@ -360,6 +402,7 @@ class ImportBatchOut(ImportUploadOut):
 
 
 class ImportRowPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     category_id: int | None = None
     disposition: ImportDisposition | None = None
 

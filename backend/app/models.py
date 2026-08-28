@@ -32,6 +32,7 @@ class Currency(enum.StrEnum):
     USD = "USD"
     UI = "UI"
 
+
 class TransactionKind(enum.StrEnum):
     INCOME = "income"
     EXPENSE = "expense"
@@ -69,6 +70,16 @@ class TimestampMixin:
     )
 
 
+class User(TimestampMixin, Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
 class Account(TimestampMixin, Base):
     __tablename__ = "accounts"
     __table_args__ = (
@@ -76,10 +87,12 @@ class Account(TimestampMixin, Base):
             "opening_balance >= -99999999999.99 AND opening_balance <= 99999999999.99",
             name="ck_accounts_opening_balance",
         ),
+        UniqueConstraint("owner_id", "name", name="uq_account_owner_name"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100))
     currency: Mapped[Currency] = mapped_column(
         Enum(Currency, native_enum=False, length=3, values_callable=enum_values)
     )
@@ -97,6 +110,7 @@ class BalanceAdjustment(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
     date: Mapped[date] = mapped_column(Date, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
@@ -109,10 +123,11 @@ class Category(TimestampMixin, Base):
     __tablename__ = "categories"
     __table_args__ = (
         CheckConstraint("kind IN ('income', 'expense')", name="ck_categories_kind"),
-        UniqueConstraint("kind", "name", "parent_id", name="uq_category_scope"),
+        UniqueConstraint("owner_id", "kind", "name", "parent_id", name="uq_category_scope"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100))
     kind: Mapped[TransactionKind] = mapped_column(
         Enum(TransactionKind, native_enum=False, length=8, values_callable=enum_values)
@@ -142,6 +157,7 @@ class Transaction(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     date: Mapped[date] = mapped_column(Date, index=True)
     kind: Mapped[TransactionKind] = mapped_column(
         Enum(TransactionKind, native_enum=False, length=8, values_callable=enum_values)
@@ -158,7 +174,7 @@ class Transaction(TimestampMixin, Base):
     category_source: Mapped[str | None] = mapped_column(String(20))
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), index=True)
     voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    origin_key: Mapped[str | None] = mapped_column(String(80), unique=True)
+    origin_key: Mapped[str | None] = mapped_column(String(80))
     semantic_fingerprint: Mapped[str | None] = mapped_column(String(80))
 
     account: Mapped[Account] = relationship(foreign_keys=[account_id])
@@ -180,6 +196,7 @@ class RecurringExpense(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     description: Mapped[str] = mapped_column(String(240))
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     day_of_month: Mapped[int] = mapped_column(Integer)
@@ -192,6 +209,7 @@ class CategorizationRule(TimestampMixin, Base):
     __tablename__ = "categorization_rules"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     needle: Mapped[str] = mapped_column(String(160))
     normalized_needle: Mapped[str] = mapped_column(String(160), index=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
@@ -204,7 +222,7 @@ class MonthlyBudget(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("amount > 0 AND amount <= 99999999999.99", name="ck_budget_amount"),
     )
-
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     currency: Mapped[Currency] = mapped_column(
         Enum(Currency, native_enum=False, length=3, values_callable=enum_values), primary_key=True
     )
@@ -215,6 +233,7 @@ class ImportBatch(TimestampMixin, Base):
     __tablename__ = "import_batches"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     filename: Mapped[str] = mapped_column(String(255))
     state: Mapped[ImportState] = mapped_column(
         Enum(ImportState, native_enum=False, length=10, values_callable=enum_values),

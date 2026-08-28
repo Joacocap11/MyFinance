@@ -42,9 +42,11 @@ def transactions_for_month(
             select(models.Transaction)
             .join(models.Account, models.Transaction.account_id == models.Account.id)
             .where(
+                models.Transaction.owner_id == db.info.get("owner_id"),
                 models.Transaction.date.between(start, end),
                 models.Transaction.voided_at.is_(None),
                 models.Account.currency == currency,
+                models.Account.owner_id == db.info.get("owner_id"),
             )
             .order_by(models.Transaction.date.desc(), models.Transaction.id.desc())
         )
@@ -54,13 +56,24 @@ def transactions_for_month(
 def top_category(db: Session, category_id: int | None) -> models.Category | None:
     if category_id is None:
         return None
-    category = db.get(models.Category, category_id)
+    category = db.scalar(
+        select(models.Category).where(
+            models.Category.id == category_id,
+            models.Category.owner_id == db.info.get("owner_id"),
+        )
+    )
     seen: set[int] = set()
     while category is not None and category.parent_id is not None:
         if category.id in seen:
             return None
         seen.add(category.id)
-        category = db.get(models.Category, category.parent_id)
+        category = db.scalar(
+            select(models.Category).where(
+                models.Category.id == category.parent_id,
+                models.Category.owner_id == db.info.get("owner_id"),
+            )
+        )
+
     return category
 
 
@@ -100,7 +113,12 @@ def monthly_report(db: Session, month: str, currency: models.Currency) -> schema
             ZERO,
         )
     )
-    budget_row = db.get(models.MonthlyBudget, currency)
+    budget_row = db.scalar(
+        select(models.MonthlyBudget).where(
+            models.MonthlyBudget.owner_id == db.info.get("owner_id"),
+            models.MonthlyBudget.currency == currency,
+        )
+    )
     budget = money(budget_row.amount) if budget_row else None
 
     totals: dict[int | None, Decimal] = {}

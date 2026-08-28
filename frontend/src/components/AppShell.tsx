@@ -3,20 +3,24 @@ import {
   ArrowDownUp,
   FileUp,
   LayoutDashboard,
+  LogOut,
   Plus,
   Settings,
+  WalletCards,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
-
+import { useAuth } from "../auth";
 const primaryNavigation = [
   { to: "/", label: "Resumen", icon: LayoutDashboard, end: true },
   { to: "/movimientos", label: "Movimientos", icon: ArrowDownUp },
+  { to: "/ajustes?section=accounts", label: "Cuentas", icon: WalletCards },
   { to: "/historico", label: "Histórico", icon: Archive },
   { to: "/importar", label: "Importar", icon: FileUp },
   { to: "/ajustes", label: "Ajustes", icon: Settings },
 ];
 
 export function AppShell() {
+  const { logout, session } = useAuth();
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -45,7 +49,14 @@ export function AppShell() {
         >
           <Plus size={18} aria-hidden="true" /> Nuevo movimiento
         </NavLink>
-        <p className="sidebar__note">Tus datos, en tu espacio.</p>
+        {session?.user.email ? (
+          <p className="sidebar__note" title={session.user.email}>
+            {session.user.email}
+          </p>
+        ) : null}
+        <button className="button button--secondary" type="button" onClick={logout}>
+          <LogOut size={16} aria-hidden="true" /> Salir
+        </button>
       </aside>
 
       <main id="contenido" className="main-content">

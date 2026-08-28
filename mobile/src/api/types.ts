@@ -1,0 +1,10 @@
+export type Currency = "UYU" | "USD" | "UI";
+export type TransactionKind = "income" | "expense" | "transfer";
+export type TransferPurpose = "regular" | "savings" | "investment";
+export type Session = { access_token: string; refresh_token: string; token_type: "bearer"; expires_in: number; user: { id: number; email: string } };
+export type Account = { id: number; name: string; currency: Currency; opening_balance: string; current_balance: string; is_active: boolean; adjustments: { id: number; date: string; amount: string; note: string }[] };
+export type Category = { id: number; name: string; kind: TransactionKind; parent_id: number | null; is_active: boolean };
+export type Transaction = { id: number; date: string; kind: TransactionKind; amount: string; destination_amount: string | null; purpose: TransferPurpose | null; description: string; notes: string | null; account_id: number; destination_account_id: number | null; category_id: number | null; category_source: string | null; is_voided: boolean; created_at: string };
+export type TransactionPage = { items: Transaction[]; total: number; page: number; page_size: number };
+export type MonthlyReport = { month: string; currency: Currency; income: string; expenses: string; net: string; savings: string; spent_percentage: string | null; budget: string | null; recent_transactions: Transaction[]; categories: { category_id: number | null; name: string; amount: string; percentage: string | null }[] };
+export type TransactionInput = { date: string; kind: TransactionKind; amount: string; description: string; account_id: number; category_id?: number | null; destination_account_id?: number | null; destination_amount?: string | null; purpose?: TransferPurpose | null; notes?: string | null };
