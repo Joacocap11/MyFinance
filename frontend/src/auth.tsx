@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+/* eslint-disable react-refresh/only-export-components -- context and hook are one auth module. */
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { api, setSession } from "./api/client";
 
 type User = { id: number; email: string };
-export type Session = {
+type Session = {
   access_token: string;
   refresh_token: string;
   user: User;
@@ -16,7 +17,7 @@ type AuthContextValue = {
   logout: () => void;
 };
 
-export const STORAGE_KEY = "myfinance.session";
+const STORAGE_KEY = "myfinance.session";
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function loadSession(): Session | null {
@@ -32,6 +33,7 @@ function loadSession(): Session | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setStoredSession] = useState<Session | null>(loadSession);
   const [ready, setReady] = useState(() => !loadSession());
+  const validatedToken = useRef<string | null>(null);
 
   useEffect(() => {
     const expire = () => {
@@ -46,9 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) {
+      validatedToken.current = null;
       setSession(null);
       return;
     }
+    if (validatedToken.current === session.access_token) return;
+    validatedToken.current = session.access_token;
     setSession(session);
     let active = true;
     void api.auth.me()
@@ -73,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [session?.access_token]);
+  }, [session]);
 
   const value = useMemo<AuthContextValue>(() => ({
     session,
