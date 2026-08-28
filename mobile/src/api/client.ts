@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { API_BASE_URL } from "../config/api";
-import type { Account, AccountInput, Category, MonthlyReport, Session, Transaction, TransactionInput, TransactionPage } from "./types";
+import type { Account, AccountInput, Category, HistoryReport, MonthlyBudget, MonthlyReport, RecurringExpense, Reconciliation, Session, Transaction, TransactionInput, TransactionPage, MovementFilters } from "./types";
 
 const SESSION_KEY = "myfinance.session";
 const LAST_LOGIN_EMAIL_KEY = "last_login_email";
@@ -72,14 +72,27 @@ export const api = {
     changePassword: (currentPassword: string, newPassword: string) => request<{ detail: string }>("/auth/change-password", { method: "POST", body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) }),
   },
   dashboard: (month: string, currency: "UYU" | "USD" | "UI") => request<MonthlyReport>(`/reports/monthly?month=${month}&currency=${currency}`),
+  history: (months: number, currency: "UYU" | "USD" | "UI") => request<HistoryReport>(`/reports/history?months=${months}&currency=${currency}`),
   accounts: () => request<Account[]>("/settings/accounts"),
+  reconcileAccount: (id: number, input: { actual_balance: string; date: string; note: string }) => request<Reconciliation>(`/settings/accounts/${id}/reconcile`, { method: "POST", body: JSON.stringify(input) }),
   createAccount: (input: AccountInput) => request<Account>("/settings/accounts", { method: "POST", body: JSON.stringify(input) }),
   account: (id: number) => request<Account>(`/settings/accounts/${id}`),
   updateAccount: (id: number, input: { name?: string; is_active?: boolean }) => request<Account>(`/settings/accounts/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
-  categories: (kind = "expense") => request<Category[]>(`/settings/categories?kind=${kind}`),
-  transactions: (page = 1, accountId?: number) => request<TransactionPage>(`/transactions?page=${page}&page_size=50${accountId === undefined ? "" : `&account_id=${accountId}`}`),
+  categories: (kind?: "income" | "expense") => request<Category[]>(`/settings/categories${kind ? `?kind=${kind}` : ""}`),
+  createCategory: (input: { name: string; kind: "income" | "expense"; parent_id?: number | null }) => request<Category>("/settings/categories", { method: "POST", body: JSON.stringify(input) }),
+  updateCategory: (id: number, input: { name?: string; parent_id?: number | null; is_active?: boolean }) => request<Category>(`/settings/categories/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  transactions: (filters: MovementFilters = {}) => {
+    const params = new URLSearchParams({ page: String(filters.page ?? 1), page_size: String(filters.page_size ?? 50) });
+    Object.entries(filters).forEach(([key, value]) => { if (key !== "page" && key !== "page_size" && value !== undefined) params.set(key, String(value)); });
+    return request<TransactionPage>(`/transactions?${params.toString()}`);
+  },
   transaction: (id: number) => request<Transaction>(`/transactions/${id}`),
   createTransaction: (input: TransactionInput) => request<Transaction>("/transactions", { method: "POST", body: JSON.stringify(input) }),
   updateTransaction: (id: number, input: Partial<TransactionInput>) => request<Transaction>(`/transactions/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   voidTransaction: (id: number) => request<Transaction>(`/transactions/${id}/void`, { method: "POST" }),
+  recurring: () => request<RecurringExpense[]>("/settings/recurring-expenses"),
+  createRecurring: (input: Omit<RecurringExpense, "id" | "is_active"> & { is_active?: boolean }) => request<RecurringExpense>("/settings/recurring-expenses", { method: "POST", body: JSON.stringify(input) }),
+  updateRecurring: (id: number, input: Partial<Omit<RecurringExpense, "id">>) => request<RecurringExpense>(`/settings/recurring-expenses/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  budget: (currency: "UYU" | "USD" | "UI") => request<MonthlyBudget>(`/settings/monthly-budget?currency=${currency}`),
+  updateBudget: (currency: "UYU" | "USD" | "UI", amount: string | null) => request<MonthlyBudget>(`/settings/monthly-budget?currency=${currency}`, { method: "PUT", body: JSON.stringify({ amount }) }),
 };
