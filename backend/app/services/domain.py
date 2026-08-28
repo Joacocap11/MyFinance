@@ -182,6 +182,8 @@ def validate_transaction_values(
         raise DomainError("Solo una transferencia admite cuenta destino y monto recibido")
     validate_category(db, category_id, kind)
     return category_id
+
+
 def create_transaction(db: Session, data: schemas.TransactionCreate) -> models.Transaction:
     category_id = data.category_id
     if category_id is None and data.kind != models.TransactionKind.TRANSFER:
@@ -246,9 +248,7 @@ def patch_transaction(
     destination_account_id = values.get(
         "destination_account_id", transaction.destination_account_id
     )
-    destination_amount = values.get(
-        "destination_amount", transaction.destination_amount
-    )
+    destination_amount = values.get("destination_amount", transaction.destination_amount)
     category_id = values.get("category_id", transaction.category_id)
     validate_transaction_values(
         db,
@@ -281,9 +281,7 @@ def void_transaction(db: Session, transaction: models.Transaction) -> models.Tra
     return transaction
 
 
-def account_balance(
-    db: Session, account: models.Account, as_of: date | None = None
-) -> Decimal:
+def account_balance(db: Session, account: models.Account, as_of: date | None = None) -> Decimal:
     as_of = as_of or date.today()
     incoming = case(
         (
@@ -350,6 +348,3 @@ def account_out(db: Session, account: models.Account) -> schemas.AccountOut:
         is_active=account.is_active,
         adjustments=[schemas.BalanceAdjustmentOut.model_validate(item) for item in adjustments],
     )
-
-
- 

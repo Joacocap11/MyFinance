@@ -2,8 +2,9 @@
 .env
 .env.*
 !.env.example
-.sql
-.sql.*
+*.sql
+*.dump
+*.backup
 
 # Python
 __pycache__/
@@ -29,6 +30,7 @@ coverage/
 # Editors and operating systems
 .idea/
 .vscode/
+snapshots/
 .DS_Store
 Thumbs.db
 

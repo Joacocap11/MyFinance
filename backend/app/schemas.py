@@ -74,6 +74,7 @@ class UserPatch(BaseModel):
     is_active: bool | None = None
     is_admin: bool | None = None
 
+
 class AccountCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=100)
@@ -92,9 +93,7 @@ class BalanceAdjustmentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     actual_balance: SignedMoney
     date: Date = Field(default_factory=Date.today)
-    note: str = Field(
-        default="Conciliación con saldo bancario", min_length=1, max_length=240
-    )
+    note: str = Field(default="Conciliación con saldo bancario", min_length=1, max_length=240)
 
 
 class BalanceAdjustmentOut(ORMModel):
@@ -105,6 +104,7 @@ class BalanceAdjustmentOut(ORMModel):
     note: str
     created_at: datetime
 
+
 class AccountOut(ORMModel):
     id: int
     name: str
@@ -113,6 +113,7 @@ class AccountOut(ORMModel):
     current_balance: Decimal
     is_active: bool
     adjustments: list[BalanceAdjustmentOut] = Field(default_factory=list)
+
 
 class ReconciliationOut(BaseModel):
     account: AccountOut
@@ -357,6 +358,7 @@ class ImportMapping(BaseModel):
     debit: str | None = None
     credit: str | None = None
     kind: str | None = None
+
     @model_validator(mode="after")
     def has_amount_source(self) -> ImportMapping:
         if self.amount and (self.debit or self.credit):

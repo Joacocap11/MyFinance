@@ -62,12 +62,16 @@ def seed(db: Session, owner_id: int | None = None, *, create_account: bool = Tru
     if owner_id is None:
         return
     db.info["owner_id"] = owner_id
-    if create_account and db.scalar(
-        select(models.Account).where(
-            models.Account.owner_id == owner_id,
-            models.Account.name == "Cuenta principal",
+    if (
+        create_account
+        and db.scalar(
+            select(models.Account).where(
+                models.Account.owner_id == owner_id,
+                models.Account.name == "Cuenta principal",
+            )
         )
-    ) is None:
+        is None
+    ):
         db.add(
             models.Account(
                 owner_id=owner_id,

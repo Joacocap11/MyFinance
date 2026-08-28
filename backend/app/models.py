@@ -32,6 +32,7 @@ class Currency(enum.StrEnum):
     USD = "USD"
     UI = "UI"
 
+
 class TransactionKind(enum.StrEnum):
     INCOME = "income"
     EXPENSE = "expense"
@@ -60,7 +61,6 @@ def enum_values(enum_class: type[enum.Enum]) -> list[str]:
     return [str(item.value) for item in enum_class]
 
 
-
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -68,6 +68,8 @@ class TimestampMixin:
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
 class User(TimestampMixin, Base):
     __tablename__ = "users"
 

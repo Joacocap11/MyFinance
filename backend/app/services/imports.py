@@ -364,10 +364,12 @@ def patch_import_row(
 
 def confirm_import(db: Session, batch_id: str) -> schemas.ImportConfirmOut:
     batch = db.scalar(
-        select(models.ImportBatch).where(
+        select(models.ImportBatch)
+        .where(
             models.ImportBatch.id == batch_id,
             owner_clause(db, models.ImportBatch),
-        ).with_for_update()
+        )
+        .with_for_update()
     )
     if batch is None:
         raise DomainError("Importación no encontrada", 404)

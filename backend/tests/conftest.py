@@ -62,7 +62,9 @@ def client(db: Session, unauthenticated_client: TestClient) -> Generator[TestCli
     db.add(user)
     db.commit()
     db.refresh(user)
-    unauthenticated_client.headers["Authorization"] = f"Bearer {auth.issue_tokens(user)['access_token']}"
+    unauthenticated_client.headers["Authorization"] = (
+        f"Bearer {auth.issue_tokens(user)['access_token']}"
+    )
     yield unauthenticated_client
 
 

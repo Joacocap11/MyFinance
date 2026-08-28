@@ -60,8 +60,8 @@ async def log_requests(
 
 
 @app.exception_handler(IntegrityError)
-async def integrity_error(_: Request, exc: IntegrityError) -> JSONResponse:
-    logger.warning("Database constraint rejected request: %s", exc.orig)
+async def integrity_error(_: Request, _exc: IntegrityError) -> JSONResponse:
+    logger.warning("Database constraint rejected request")
     return JSONResponse(
         status_code=409, content={"detail": "El recurso entra en conflicto con datos existentes"}
     )

@@ -21,8 +21,11 @@ def test_positive_reconciliation_preserves_history(
 ) -> None:
     db.add(
         models.Transaction(
-            date=date(2026, 8, 20), kind=models.TransactionKind.EXPENSE,
-            amount=Decimal("25.00"), description="Compra", account_id=account.id,
+            date=date(2026, 8, 20),
+            kind=models.TransactionKind.EXPENSE,
+            amount=Decimal("25.00"),
+            description="Compra",
+            account_id=account.id,
         )
     )
     db.commit()
@@ -44,9 +47,7 @@ def test_negative_reconciliation(client: TestClient, db: Session, account: model
     assert body["account"]["current_balance"] == "42000.00"
 
 
-def test_zero_reconciliation_creates_no_record(
-    client: TestClient, account: models.Account
-) -> None:
+def test_zero_reconciliation_creates_no_record(client: TestClient, account: models.Account) -> None:
     body = reconcile(client, account, "100.00")
 
     assert body["already_reconciled"] is True
@@ -59,12 +60,18 @@ def test_reconciliation_does_not_change_monthly_flow(
     db.add_all(
         [
             models.Transaction(
-                date=date(2026, 8, 5), kind=models.TransactionKind.INCOME,
-                amount=Decimal("100.00"), description="Ingreso", account_id=account.id,
+                date=date(2026, 8, 5),
+                kind=models.TransactionKind.INCOME,
+                amount=Decimal("100.00"),
+                description="Ingreso",
+                account_id=account.id,
             ),
             models.Transaction(
-                date=date(2026, 8, 6), kind=models.TransactionKind.EXPENSE,
-                amount=Decimal("25.00"), description="Gasto", account_id=account.id,
+                date=date(2026, 8, 6),
+                kind=models.TransactionKind.EXPENSE,
+                amount=Decimal("25.00"),
+                description="Gasto",
+                account_id=account.id,
             ),
         ]
     )
@@ -75,7 +82,9 @@ def test_reconciliation_does_not_change_monthly_flow(
 
     after = client.get("/api/v1/reports/monthly?month=2026-08&currency=UYU").json()
     assert (after["income"], after["expenses"], after["net"]) == (
-        before["income"], before["expenses"], before["net"]
+        before["income"],
+        before["expenses"],
+        before["net"],
     )
 
 

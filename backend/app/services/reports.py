@@ -74,8 +74,9 @@ def top_category(db: Session, category_id: int | None) -> models.Category | None
             )
         )
 
-
     return category
+
+
 def monthly_report(db: Session, month: str, currency: models.Currency) -> schemas.MonthlyReport:
     rows = transactions_for_month(db, month, currency)
     income = money(

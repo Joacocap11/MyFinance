@@ -190,9 +190,6 @@ def test_cross_currency_transfer_uses_received_amount(
 
     assert response.status_code == 201, response.text
     assert response.json()["destination_amount"] == "245.00"
-    accounts = {
-        item["currency"]: item
-        for item in client.get("/api/v1/settings/accounts").json()
-    }
+    accounts = {item["currency"]: item for item in client.get("/api/v1/settings/accounts").json()}
     assert accounts["UYU"]["current_balance"] == "-9900.00"
     assert accounts["USD"]["current_balance"] == "745.00"

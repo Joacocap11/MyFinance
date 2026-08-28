@@ -26,6 +26,8 @@ def add(
         )
     )
     db.commit()
+
+
 def test_exact_normalized_match_is_suggested_and_applied(
     client: TestClient, db: Session, account: models.Account, categories: dict[str, models.Category]
 ) -> None:
@@ -67,6 +69,4 @@ def test_transfer_is_never_autocategorized(
         destination.id,
     )
     preview = client.get("/api/v1/settings/categorization/preview").json()
-    assert all(
-        item["description"] != "Transferencia" for item in preview["suggestions"]
-    )
+    assert all(item["description"] != "Transferencia" for item in preview["suggestions"])
