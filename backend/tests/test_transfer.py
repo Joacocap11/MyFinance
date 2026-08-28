@@ -1,3 +1,4 @@
+# ruff: noqa: I001 -- the repository-root scripts package is imported by test seam.
 import sys
 from datetime import date
 from decimal import Decimal
