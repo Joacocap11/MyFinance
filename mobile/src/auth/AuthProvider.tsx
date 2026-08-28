@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, clearSession, getSession, loadStoredSession, saveSession, setSessionExpiredHandler } from "../api/client";
+import { api, clearSession, getSession, loadStoredSession, saveLastLoginEmail, saveSession, setSessionExpiredHandler } from "../api/client";
 import type { Session } from "../api/types";
 
 type AuthValue = { session: Session | null; loading: boolean; login: (email: string, password: string) => Promise<void>; logout: () => Promise<void> };
@@ -33,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
       const next = await api.auth.login(email, password);
       await saveSession(next);
+      await saveLastLoginEmail(email);
       setCurrentSession(next);
     },
     async logout() {

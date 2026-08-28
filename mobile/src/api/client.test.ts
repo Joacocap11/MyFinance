@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import { api, loadStoredSession, saveSession } from "./client";
+import { api, loadLastLoginEmail, loadStoredSession, saveLastLoginEmail, saveSession } from "./client";
 import type { Session } from "./types";
 
 jest.mock("expo-secure-store", () => ({
@@ -35,6 +35,33 @@ test("restaura la sesión desde SecureStore", async () => {
   (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(session));
   await expect(loadStoredSession()).resolves.toEqual(session);
   expect(SecureStore.getItemAsync).toHaveBeenCalledWith("myfinance.session");
+});
+test("recuerda solo el último email normalizado", async () => {
+  await saveLastLoginEmail("  Other@Example.COM ");
+  expect(SecureStore.setItemAsync).toHaveBeenCalledWith("last_login_email", "other@example.com");
+  (SecureStore.getItemAsync as jest.Mock).mockResolvedValue("other@example.com");
+  await expect(loadLastLoginEmail()).resolves.toBe("other@example.com");
+  expect(SecureStore.getItemAsync).toHaveBeenCalledWith("last_login_email");
+});
+
+test("el email recordado está separado de la sesión y no contiene password", async () => {
+  await saveLastLoginEmail("user@example.com");
+  expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith("myfinance.session", expect.stringContaining("password"));
+  expect(JSON.stringify((SecureStore.setItemAsync as jest.Mock).mock.calls.at(-1))).not.toContain("password");
+});
+test("crea y actualiza cuentas mediante settings API", async () => {
+  await saveSession(session);
+  const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify({ id: 9, name: "Ahorro", currency: "USD", opening_balance: "1000.50", current_balance: "1000.50", is_active: true, adjustments: [] }), { status: 201 }));
+  await api.createAccount({ name: "Ahorro", currency: "USD", opening_balance: "1000.50" });
+  expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/settings/accounts"), expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Ahorro", currency: "USD", opening_balance: "1000.50" }) }));
+  fetchMock.mockRestore();
+});
+test("consulta el reporte mensual con período y moneda seleccionados", async () => {
+  await saveSession(session);
+  const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify({ month: "2026-07", currency: "UYU", categories: [] }), { status: 200 }));
+  await api.dashboard("2026-07", "UYU");
+  expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/reports/monthly?month=2026-07&currency=UYU"), expect.anything());
+  fetchMock.mockRestore();
 });
 
 test("refresca /auth/me cuando el access token expiró", async () => {

@@ -1,8 +1,9 @@
 import * as SecureStore from "expo-secure-store";
 import { API_BASE_URL } from "../config/api";
-import type { Account, Category, MonthlyReport, Session, Transaction, TransactionInput, TransactionPage } from "./types";
+import type { Account, AccountInput, Category, MonthlyReport, Session, Transaction, TransactionInput, TransactionPage } from "./types";
 
 const SESSION_KEY = "myfinance.session";
+const LAST_LOGIN_EMAIL_KEY = "last_login_email";
 let session: Session | null = null;
 let refreshPromise: Promise<boolean> | null = null;
 let onSessionExpired: (() => void) | undefined;
@@ -23,6 +24,12 @@ export async function loadStoredSession(): Promise<Session | null> {
 }
 export async function saveSession(value: Session) { session = value; await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(value)); }
 export async function clearSession() { session = null; await SecureStore.deleteItemAsync(SESSION_KEY); }
+export async function loadLastLoginEmail(): Promise<string> {
+  return (await SecureStore.getItemAsync(LAST_LOGIN_EMAIL_KEY)) ?? "";
+}
+export async function saveLastLoginEmail(email: string) {
+  await SecureStore.setItemAsync(LAST_LOGIN_EMAIL_KEY, email.trim().toLowerCase());
+}
 
 async function refresh(): Promise<boolean> {
   if (!session) return false;
@@ -66,7 +73,9 @@ export const api = {
   },
   dashboard: (month: string, currency: "UYU" | "USD" | "UI") => request<MonthlyReport>(`/reports/monthly?month=${month}&currency=${currency}`),
   accounts: () => request<Account[]>("/settings/accounts"),
+  createAccount: (input: AccountInput) => request<Account>("/settings/accounts", { method: "POST", body: JSON.stringify(input) }),
   account: (id: number) => request<Account>(`/settings/accounts/${id}`),
+  updateAccount: (id: number, input: { name?: string; is_active?: boolean }) => request<Account>(`/settings/accounts/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   categories: (kind = "expense") => request<Category[]>(`/settings/categories?kind=${kind}`),
   transactions: (page = 1, accountId?: number) => request<TransactionPage>(`/transactions?page=${page}&page_size=50${accountId === undefined ? "" : `&account_id=${accountId}`}`),
   transaction: (id: number) => request<Transaction>(`/transactions/${id}`),

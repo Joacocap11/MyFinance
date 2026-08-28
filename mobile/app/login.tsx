@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import { ApiError } from "../src/api/client";
+import { ApiError, loadLastLoginEmail } from "../src/api/client";
 import { useAuth } from "../src/auth/AuthProvider";
 import { Icon, PrimaryButton } from "../src/ui/components";
 import { colors, commonStyles, radii, spacing, typography } from "../src/ui/theme";
@@ -12,6 +12,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => { void loadLastLoginEmail().then(setEmail); }, []);
   async function submit() {
     if (!email.trim() || !password || busy) return;
     setBusy(true);
