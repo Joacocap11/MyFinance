@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+mobile/.expo/
 *.sql
 *.dump
 *.backup
