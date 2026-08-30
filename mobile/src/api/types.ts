@@ -1,7 +1,7 @@
 export type Currency = "UYU" | "USD" | "UI";
 export type TransactionKind = "income" | "expense" | "transfer";
 export type TransferPurpose = "regular" | "savings" | "investment";
-export type Session = { access_token: string; refresh_token: string; token_type: "bearer"; expires_in: number; user: { id: number; email: string } };
+export type Session = { version?: number; access_token: string; refresh_token: string; token_type: "bearer"; expires_in: number; user: { id: number; email: string } };
 export type Account = { id: number; name: string; currency: Currency; opening_balance: string; current_balance: string; is_active: boolean; adjustments: { id: number; date: string; amount: string; note: string }[] };
 export type AccountInput = { name: string; currency: Currency; opening_balance: string };
 export type Category = { id: number; name: string; kind: TransactionKind; parent_id: number | null; is_active: boolean };

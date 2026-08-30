@@ -1,47 +1,62 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, clearSession, getSession, loadStoredSession, saveLastLoginEmail, saveSession, setSessionExpiredHandler } from "../api/client";
+import { router } from "expo-router";
+import { api, clearSession, loadStoredSession, saveLastLoginEmail, saveSession, setSessionExpiredHandler } from "../api/client";
 import type { Session } from "../api/types";
 
-type AuthValue = { session: Session | null; loading: boolean; login: (email: string, password: string) => Promise<void>; logout: () => Promise<void> };
+type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+type AuthValue = { session: Session | null; status: AuthStatus; loading: boolean; login: (email: string, password: string) => Promise<void>; logout: () => Promise<void> };
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [session, setCurrentSession] = useState<Session | null>(getSession());
-  const [loading, setLoading] = useState(true);
+  const [session, setCurrentSession] = useState<Session | null>(null);
+  const [status, setStatus] = useState<AuthStatus>("loading");
+
   useEffect(() => {
-    setSessionExpiredHandler(() => {
-      void clearSession();
+    let mounted = true;
+    const expire = async () => {
+      await clearSession();
       queryClient.clear();
-      setCurrentSession(null);
-    });
-    void loadStoredSession().then(async stored => {
-      if (stored) {
-        try { await api.auth.me(); setCurrentSession(stored); }
-        catch { await clearSession(); }
-      }
-      setLoading(false);
-    });
-    return () => setSessionExpiredHandler(undefined);
+      if (mounted) { setCurrentSession(null); setStatus("unauthenticated"); router.replace("/login"); }
+    };
+    setSessionExpiredHandler(expire);
+    void (async () => {
+      const stored = await loadStoredSession();
+      if (!stored) { if (mounted) setStatus("unauthenticated"); return; }
+      try {
+        const user = await api.auth.me();
+        const restored = { ...stored, user };
+        await saveSession(restored);
+        if (mounted) { setCurrentSession(restored); setStatus("authenticated"); }
+      } catch { await expire(); }
+    })();
+    return () => { mounted = false; setSessionExpiredHandler(undefined); };
   }, [queryClient]);
+
   const value = useMemo<AuthValue>(() => ({
     session,
-    loading,
+    status,
+    loading: status === "loading",
     async login(email, password) {
       queryClient.clear();
-      const next = await api.auth.login(email, password);
+      const tokens = await api.auth.login(email, password);
+      const user = await api.auth.me();
+      const next = { ...tokens, user };
       await saveSession(next);
       await saveLastLoginEmail(email);
       setCurrentSession(next);
+      setStatus("authenticated");
     },
     async logout() {
-      await clearSession();
-      queryClient.clear();
       setCurrentSession(null);
+      setStatus("unauthenticated");
+      queryClient.clear();
+      await clearSession();
+      router.replace("/login");
     },
-  }), [loading, queryClient, session]);
+  }), [queryClient, session, status]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
