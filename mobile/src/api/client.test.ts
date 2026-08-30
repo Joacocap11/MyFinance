@@ -165,3 +165,13 @@ test("clearSession siempre limpia memoria sin borrar last_login_email", async ()
   expect(getSession()).toBeNull();
   expect(await loadLastLoginEmail()).toBe("remembered@example.com");
 });
+test("login deja el access token fresco antes de /auth/me", async () => {
+  const fetchMock = jest.spyOn(global, "fetch")
+    .mockResolvedValueOnce(new Response(JSON.stringify({ version: 2, access_token: "access-test", refresh_token: "refresh-test", token_type: "bearer", expires_in: 1800, user: { id: 1, email: "login@example.com" } }), { status: 200 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, email: "login@example.com" }), { status: 200 }));
+  await api.auth.login("login@example.com", "password");
+  await expect(api.auth.me()).resolves.toEqual({ id: 1, email: "login@example.com" });
+  expect((fetchMock.mock.calls[1][1]?.headers as Headers).get("Authorization")).toBe("Bearer access-test");
+  expect(SecureStore.setItemAsync).toHaveBeenCalledWith("myfinance.session", expect.stringContaining("\"access_token\":\"access-test\""));
+  fetchMock.mockRestore();
+});

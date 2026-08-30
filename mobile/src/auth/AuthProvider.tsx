@@ -42,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async login(email, password) {
       queryClient.clear();
       const tokens = await api.auth.login(email, password);
+      // api.auth.login updates the synchronous client session before returning.
       const user = await api.auth.me();
       const next = { ...tokens, user };
       await saveSession(next);

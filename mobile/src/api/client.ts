@@ -81,7 +81,11 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
 
 export const api = {
   auth: {
-    login: (email: string, password: string) => request<Session>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    login: async (email: string, password: string) => {
+      const tokens = await request<Session>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+      await saveSession(tokens);
+      return tokens;
+    },
     me: () => request<{ id: number; email: string }>("/auth/me"),
     changePassword: (currentPassword: string, newPassword: string) => request<{ detail: string }>("/auth/change-password", { method: "POST", body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) }),
   },
