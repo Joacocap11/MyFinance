@@ -53,7 +53,6 @@ services:
     ports:
       - target: 80
         published: "${FRONTEND_PORT:-3000}"
-        host_ip: 127.0.0.1
         protocol: tcp
     depends_on:
       backend:
