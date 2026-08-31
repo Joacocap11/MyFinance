@@ -6,43 +6,38 @@ React Native + Expo + TypeScript client for the existing MyFinance FastAPI API. 
 
 ```sh
 cd mobile
-npm install
-cp .env.example .env
+npm ci --legacy-peer-deps
+cp .env.production.example .env
 ```
-Set `EXPO_PUBLIC_API_BASE_URL` to the API address reachable by the phone. Never hardcode an IP in source code:
+The Android production APK always uses the private LAN/WireGuard API:
 
 ```env
-EXPO_PUBLIC_API_BASE_URL=http://192.168.1.50:3000/api/v1
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.15:3000/api/v1
 ```
+This URL is public build configuration, not a secret. Do not replace it with
+`localhost`, `127.0.0.1`, `10.0.2.2`, or a public IP.
 
-Examples:
-
-- LAN / physical device: `http://192.168.1.50:3000/api/v1`
-- WireGuard / Home Lab: `http://10.8.0.5:3000/api/v1`
-- Android Emulator with the backend on the development Mac: `http://10.0.2.2:8000/api/v1`
-- iOS Simulator with the backend on the development Mac: `http://127.0.0.1:8000/api/v1`
-
-Do not use `localhost` on a physical device:
+The phone must reach `192.168.1.15` through home Wi-Fi or WireGuard. The app
+does not detect or configure VPN and the API is not exposed to the Internet.
 
 The phone flow is:
 
 ```text
 Celular
   ↓
-WireGuard
+Wi-Fi de casa o WireGuard
   ↓
-IP privada Home Lab
-  ↓
-nginx/frontend
-  ↓
-/api/v1
+192.168.1.15:3000/api/v1
   ↓
 FastAPI
 ```
 
 The first user is created through the bootstrap endpoint from the web/API, not from mobile.
 
+
 ## Run
+
+Development commands:
 
 ```sh
 npm start
@@ -50,7 +45,13 @@ npm run android
 npm run ios
 ```
 
-Scan the Expo QR code with Expo Go, or use an Android emulator/iOS simulator. The API URL is read once from Expo's public environment at bundle time.
+Build an installable Android APK without Expo Go or Metro:
+
+```sh
+npx eas-cli build --platform android --profile preview
+```
+
+The `preview` profile produces an APK and injects the private API URL at bundle time. The installed app runs standalone and stores its session with SecureStore.
 
 Quality checks:
 
