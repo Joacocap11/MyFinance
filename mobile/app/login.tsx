@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
 import { ApiError, loadLastLoginEmail } from "../src/api/client";
 import { useAuth } from "../src/auth/AuthProvider";
 import { Icon, PrimaryButton } from "../src/ui/components";
@@ -21,7 +20,7 @@ export default function Login() {
     if (!email.trim() || !password || busy) return;
     setBusy(true);
     setError(null);
-    try { await login(email.trim(), password); router.replace("/(tabs)"); }
+    try { await login(email.trim(), password); }
     catch (reason) { setError(reason instanceof ApiError ? reason.message : "Verificá tus credenciales y el acceso al servidor."); }
     finally { setBusy(false); }
   }

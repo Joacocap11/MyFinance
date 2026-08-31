@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, router } from "expo-router";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { api } from "../../src/api/client";
 import { currentMonth, formatDate, formatMoney, formatMonth, shiftMonth } from "../../src/lib/format";
 import type { MonthlyReport } from "../../src/api/types";
 import { Icon, ScreenMessage, SectionHeader } from "../../src/ui/components";
+import { ScrollableScreen } from "../../src/ui/Screen";
 import { colors, commonStyles, radii, spacing, typography } from "../../src/ui/theme";
 
 function transactionIcon(kind: "income" | "expense" | "transfer") {
@@ -27,7 +28,7 @@ export default function Dashboard() {
   if (report.isPending) return <ScreenMessage title="Cargando tu resumen" detail="Estamos trayendo tus últimos datos…" icon="hourglass-outline" />;
   if (report.isError) return <ScreenMessage title="No se pudo cargar el resumen" detail="Deslizá hacia abajo para reintentar." />;
   const data = report.data;
-  return <ScrollView style={commonStyles.page} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={report.isRefetching} onRefresh={refresh} tintColor={colors.primary} />}>
+  return <ScrollableScreen style={commonStyles.page} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={report.isRefetching} onRefresh={refresh} tintColor={colors.primary} />}>
     <View style={styles.monthHeader}><Pressable accessibilityLabel="Mes anterior" onPress={() => goMonth(-1)} style={styles.monthButton}><Icon name="chevron-back" size={24} color={colors.primary} /></Pressable><View style={styles.monthTitle}><Text style={styles.eyebrow}>MES SELECCIONADO</Text><Text style={typography.title}>{formatMonth(month)}</Text></View><Pressable accessibilityLabel="Mes siguiente" onPress={() => goMonth(1)} disabled={month >= currentMonth()} style={[styles.monthButton, month >= currentMonth() && styles.disabled]}><Icon name="chevron-forward" size={24} color={colors.primary} /></Pressable></View>
     {month !== currentMonth() ? <Pressable accessibilityRole="button" onPress={() => setMonth(currentMonth())}><Text style={styles.currentMonth}>Mes actual</Text></Pressable> : null}
     <View style={styles.heroCard}><Text style={styles.cardLabel}>Resultado del mes</Text><Text style={[styles.heroAmount, { color: Number(data.net) >= 0 ? colors.success : colors.danger }]}>{formatMoney(data.net, data.currency)}</Text><View style={styles.metrics}><View><Text style={styles.cardLabel}>Ingresos</Text><Text style={styles.metricValue}>{formatMoney(data.income, data.currency)}</Text></View><View><Text style={styles.cardLabel}>Gastos</Text><Text style={styles.metricValue}>{formatMoney(data.expenses, data.currency)}</Text></View></View></View>
@@ -35,7 +36,7 @@ export default function Dashboard() {
     <View style={styles.panel}><SectionHeader title="Gastos por categoría" /><CategoryBars report={data} /></View>
     <SectionHeader title="Últimos movimientos" />
     {data.recent_transactions.length ? data.recent_transactions.slice(0, 5).map(transaction => <Link key={transaction.id} href={{ pathname: "/movement/[id]", params: { id: transaction.id } }} asChild><Pressable style={styles.listCard}><View style={[styles.rowIcon, transaction.kind === "income" ? styles.incomeIcon : transaction.kind === "expense" ? styles.expenseIcon : styles.transferIcon]}><Icon name={transactionIcon(transaction.kind)} size={21} color={transaction.kind === "income" ? colors.success : transaction.kind === "expense" ? colors.danger : colors.primary} /></View><View style={styles.flex}><Text style={styles.itemTitle}>{transaction.description}</Text><Text style={styles.muted}>{formatDate(transaction.date)} · {transaction.is_voided ? "Anulado" : transaction.kind === "income" ? "Ingreso" : transaction.kind === "expense" ? "Gasto" : "Transferencia"}</Text></View><Text style={[styles.itemAmount, { color: transaction.kind === "income" ? colors.success : transaction.kind === "expense" ? colors.danger : colors.ink }]}>{transaction.kind === "expense" ? "−" : transaction.kind === "income" ? "+" : ""}{formatMoney(transaction.amount, data.currency)}</Text></Pressable></Link>) : <View style={styles.empty}><Text style={styles.muted}>No hay movimientos en este mes.</Text></View>}
-  </ScrollView>;
+  </ScrollableScreen>;
 }
 
 const styles = StyleSheet.create({
