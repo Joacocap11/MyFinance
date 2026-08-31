@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 import type {
@@ -43,7 +43,6 @@ import { categoryPath, formatMoney, sortCategories } from "../lib/format";
 import { useRequest } from "../lib/useRequest";
 
 type SettingsSection =
-  | "accounts"
   | "categories"
   | "rules"
   | "recurring"
@@ -54,9 +53,8 @@ type SettingsSection =
 const sectionNavigation: Array<{
   id: SettingsSection;
   label: string;
-  icon: typeof WalletCards;
+  icon: typeof FolderTree;
 }> = [
-  { id: "accounts", label: "Cuentas", icon: WalletCards },
   { id: "categories", label: "Categorías", icon: FolderTree },
   { id: "rules", label: "Reglas", icon: Tags },
   { id: "recurring", label: "Gastos recurrentes", icon: CalendarClock },
@@ -65,6 +63,21 @@ const sectionNavigation: Array<{
   { id: "users", label: "Usuarios", icon: UserRound },
 ];
 
+export function AccountsPage() {
+  return (
+    <div className="page page--settings">
+      <PageHeader
+        eyebrow="Tus cuentas"
+        title="Cuentas"
+        description="Gestioná tus cuentas y sus saldos."
+      />
+      <section className="settings-content">
+        <AccountsSettings />
+      </section>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { session } = useAuth();
   const visibleSections = sectionNavigation.filter(
@@ -72,11 +85,12 @@ export function SettingsPage() {
   );
   const [search, setSearch] = useSearchParams();
   const rawSection = search.get("section");
+  if (rawSection === "accounts") return <Navigate to="/cuentas" replace />;
   const section: SettingsSection = visibleSections.some(
     (item) => item.id === rawSection,
   )
     ? (rawSection as SettingsSection)
-    : "accounts";
+    : "categories";
   const selectSection = (value: SettingsSection) => {
     const next = new URLSearchParams(search);
     next.set("section", value);
@@ -105,7 +119,6 @@ export function SettingsPage() {
           ))}
         </nav>
         <section className="settings-content">
-          {section === "accounts" ? <AccountsSettings /> : null}
           {section === "categories" ? <CategoriesSettings /> : null}
           {section === "rules" ? <RulesSettings /> : null}
           {section === "recurring" ? <RecurringSettings /> : null}
@@ -113,7 +126,6 @@ export function SettingsPage() {
           {section === "security" ? <SecuritySettings /> : null}
           {section === "users" && session?.user.is_admin ? <UsersSettings /> : null}
         </section>
-
       </div>
     </div>
   );

@@ -8,19 +8,40 @@ import {
   Settings,
   WalletCards,
 } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
+
 const primaryNavigation = [
   { to: "/", label: "Resumen", icon: LayoutDashboard, end: true },
   { to: "/movimientos", label: "Movimientos", icon: ArrowDownUp },
-  { to: "/ajustes?section=accounts", label: "Cuentas", icon: WalletCards },
+  { to: "/cuentas", label: "Cuentas", icon: WalletCards },
   { to: "/historico", label: "Histórico", icon: Archive },
   { to: "/importar", label: "Importar", icon: FileUp },
   { to: "/ajustes", label: "Ajustes", icon: Settings },
 ];
 
+function isPrimaryNavigationActive(
+  to: string,
+  pathname: string,
+  search: string,
+  end?: boolean,
+) {
+  if (to === "/cuentas") {
+    return pathname === "/cuentas" || (
+      pathname === "/ajustes" &&
+      new URLSearchParams(search).get("section") === "accounts"
+    );
+  }
+  if (to === "/ajustes") {
+    return pathname === "/ajustes" &&
+      new URLSearchParams(search).get("section") !== "accounts";
+  }
+  return end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`);
+}
+
 export function AppShell() {
   const { logout, session } = useAuth();
+  const location = useLocation();
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -34,8 +55,8 @@ export function AppShell() {
               key={to}
               to={to}
               end={end}
-              className={({ isActive }) =>
-                `nav-link ${isActive ? "is-active" : ""}`
+              className={() =>
+                `nav-link ${isPrimaryNavigationActive(to, location.pathname, location.search, end) ? "is-active" : ""}`
               }
             >
               <Icon size={19} aria-hidden="true" />

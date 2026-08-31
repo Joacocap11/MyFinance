@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SettingsPage } from "./SettingsPage";
+import { AccountsPage } from "./SettingsPage";
 
 vi.mock("../auth", () => ({ useAuth: () => ({ ready: true, session: null, logout: vi.fn() }) }));
 
@@ -26,7 +26,7 @@ describe("account CSV export", () => {
 
   it("muestra el botón y descarga el blob desde el endpoint de la cuenta", async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    render(<MemoryRouter><AccountsPage /></MemoryRouter>);
     await user.click(await screen.findByRole("button", { name: "Exportar CSV" }));
     const calls = vi.mocked(fetch).mock.calls;
     expect(calls.some(([input]) => {

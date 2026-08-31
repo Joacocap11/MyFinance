@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginPage } from "./LoginPage";
 import { RegisterPage } from "./RegisterPage";
-import { SettingsPage } from "./SettingsPage";
+import { AccountsPage, SettingsPage } from "./SettingsPage";
 
 const login = vi.fn();
 const register = vi.fn();
@@ -124,7 +124,11 @@ describe("SecuritySettings", () => {
 
   async function openSecurity() {
     const user = userEvent.setup();
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    render(
+      <MemoryRouter initialEntries={["/ajustes?section=security"]}>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
     await user.click(screen.getByRole("button", { name: /Seguridad/ }));
     await screen.findByText("Cambiar contraseña");
     return user;
@@ -161,7 +165,7 @@ describe("AccountsSettings", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    render(<MemoryRouter><AccountsPage /></MemoryRouter>);
     expect(await screen.findByText("Cuenta principal")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Nueva cuenta" }));
     await user.type(screen.getByLabelText("Nombre"), "Ahorro USD");

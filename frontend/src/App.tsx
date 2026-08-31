@@ -41,6 +41,11 @@ const SettingsPage = lazy(() =>
     default: SettingsPage,
   })),
 );
+const AccountsPage = lazy(() =>
+  import("./pages/SettingsPage").then(({ AccountsPage }) => ({
+    default: AccountsPage,
+  })),
+);
 
 function DeferredPage({ children }: { children: ReactNode }) {
   return (
@@ -127,6 +132,14 @@ const router = createBrowserRouter([
         element: (
           <DeferredPage>
             <ImportPage />
+          </DeferredPage>
+        ),
+      },
+      {
+        path: "cuentas",
+        element: (
+          <DeferredPage>
+            <AccountsPage />
           </DeferredPage>
         ),
       },
