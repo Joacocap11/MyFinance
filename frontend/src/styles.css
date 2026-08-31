@@ -164,14 +164,12 @@ svg {
   font-size: 1.08rem;
   font-weight: 700;
 }
-.brand__mark {
-  display: grid;
+.brand__logo {
   width: 36px;
   height: 36px;
-  place-items: center;
+  flex: 0 0 36px;
   border-radius: var(--radius-md);
-  color: var(--color-surface);
-  background: var(--color-ink);
+  object-fit: cover;
 }
 .sidebar nav {
   display: grid;
@@ -1503,7 +1501,7 @@ svg {
   color: var(--color-ink);
   font: 700 1.1rem var(--font-display);
 }
-.login-brand .brand__mark { width: 36px; height: 36px; }
+.login-brand .brand__logo { width: 36px; height: 36px; }
 .login-card h1 { max-width: 13ch; margin-bottom: var(--space-2); }
 .login-intro { margin-bottom: var(--space-6); color: var(--color-ink-muted); }
 .login-input {

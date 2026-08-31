@@ -46,7 +46,7 @@ export function AppShell() {
     <div className="app-shell">
       <aside className="sidebar">
         <NavLink to="/" className="brand" aria-label="MyFinance — Resumen">
-          <span className="brand__mark">M</span>
+          <img className="brand__logo" src="/branding/apple-touch-icon.png" alt="" />
           <span>MyFinance</span>
         </NavLink>
         <nav aria-label="Navegación principal">

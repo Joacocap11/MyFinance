@@ -1,4 +1,4 @@
-import { Eye, EyeOff, LockKeyhole, Mail, WalletCards } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -44,7 +44,7 @@ export function LoginPage() {
     <main className="login-page">
       <section className="login-card" aria-labelledby="login-title">
         <div className="login-brand">
-          <span className="brand__mark" aria-hidden="true"><WalletCards size={22} /></span>
+          <img className="brand__logo" src="/branding/apple-touch-icon.png" alt="" />
           <span>MyFinance</span>
         </div>
         <p className="eyebrow">Tu espacio financiero</p>

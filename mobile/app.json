@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "scheme": "myfinance",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
     "plugins": [
       "expo-router",
       "expo-secure-store",
@@ -24,7 +25,11 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.myfinance.mobile"
+      "package": "com.myfinance.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b1b35"
+      }
     },
     "extra": {
       "router": {},
