@@ -126,18 +126,24 @@ function ImportWorkflow({
       const credit = findHeader(["crédito", "credito", "haber", "credit"]);
       const splitAmounts = !amount && Boolean(debit || credit);
       setAmountMode(splitAmounts ? "split" : "signed");
+      const native = uploaded.headers.includes("myfinance_format_version");
       setMapping({
-        date: findHeader(["fecha", "date"]),
-        description: findHeader([
-          "descripción",
-          "descripcion",
-          "concepto",
-          "description",
+        date: native ? "date" : findHeader(["fecha", "date"]),
+        description: native ? "description" : findHeader([
+          "descripción", "descripcion", "concepto", "description",
         ]),
-        amount: splitAmounts ? undefined : amount,
-        debit: splitAmounts ? debit : undefined,
-        credit: splitAmounts ? credit : undefined,
-        kind: findHeader(["tipo", "kind"]) || undefined,
+        amount: native ? "amount" : (splitAmounts ? undefined : amount),
+        debit: native ? undefined : (splitAmounts ? debit : undefined),
+        credit: native ? undefined : (splitAmounts ? credit : undefined),
+        kind: native ? "kind" : (findHeader(["tipo", "kind"]) || undefined),
+        currency: native ? "currency" : undefined,
+        category: native ? "category" : undefined,
+        destination_account: native ? "destination_account" : undefined,
+        destination_currency: native ? "destination_currency" : undefined,
+        destination_amount: native ? "destination_amount" : undefined,
+        purpose: native ? "purpose" : undefined,
+        status: native ? "status" : undefined,
+        notes: native ? "notes" : undefined,
       });
     } catch (reason) {
       setError(

@@ -365,6 +365,14 @@ class ImportMapping(BaseModel):
     debit: str | None = None
     credit: str | None = None
     kind: str | None = None
+    currency: str | None = None
+    category: str | None = None
+    destination_account: str | None = None
+    destination_currency: str | None = None
+    destination_amount: str | None = None
+    purpose: str | None = None
+    status: str | None = None
+    notes: str | None = None
 
     @model_validator(mode="after")
     def has_amount_source(self) -> ImportMapping:

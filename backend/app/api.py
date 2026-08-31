@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
@@ -13,7 +14,7 @@ from app import auth, models, schemas
 from app.config import get_settings
 from app.db import get_db
 from app.seed import seed as seed_data
-from app.services import autocategorization, domain, imports, reports
+from app.services import autocategorization, domain, exports, imports, reports
 
 Db = Annotated[Session, Depends(get_db)]
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(auth.current_user)])
@@ -351,6 +352,17 @@ def list_accounts(db: Db) -> list[schemas.AccountOut]:
 @router.get("/settings/accounts/{account_id}", response_model=schemas.AccountOut)
 def get_account(account_id: int, db: Db) -> schemas.AccountOut:
     return domain.account_out(db, domain.get_or_404(db, models.Account, account_id))
+
+
+@router.get("/settings/accounts/{account_id}/export.csv")
+def export_account(account_id: int, db: Db) -> Response:
+    account = domain.get_or_404(db, models.Account, account_id)
+    content, filename = exports.account_csv(db, account)
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/settings/accounts", response_model=schemas.AccountOut, status_code=201)
