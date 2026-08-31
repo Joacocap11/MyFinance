@@ -78,7 +78,7 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
       - name: Install mobile dependencies
         working-directory: mobile
-        run: npm ci
+        run: npm ci --legacy-peer-deps
       - name: Lint
         working-directory: mobile
         run: npm run lint
