@@ -26,3 +26,13 @@ export function normalizeDecimal(value: string): string {
 }
 
 export function currentMonth(): string { return localDateIso().slice(0, 7); }
+export function shiftMonth(month: string, offset: number): string {
+  const [year, value] = month.split("-").map(Number);
+  const date = new Date(year, value - 1 + offset, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function formatMonth(month: string): string {
+  const [year, value] = month.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-UY", { month: "long", year: "numeric" }).format(new Date(year, value - 1, 1)).replace(/^./, char => char.toUpperCase());
+}

@@ -7,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # Demo tooling is explicitly disabled outside local development.
+    environment: str = "development"
     # SQLite remains a development/test fallback; Compose supplies PostgreSQL.
     database_url: str = "sqlite:///./myfinance.db"
     cors_origins: list[str] = [
