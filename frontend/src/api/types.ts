@@ -197,6 +197,14 @@ export interface ImportMapping {
   debit?: string;
   credit?: string;
   kind?: string;
+  currency?: string;
+  category?: string;
+  destination_account?: string;
+  destination_currency?: string;
+  destination_amount?: string;
+  purpose?: string;
+  status?: string;
+  notes?: string;
 }
 
 export interface ImportConfirmation {

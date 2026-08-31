@@ -208,6 +208,7 @@ function AccountsSettings() {
   const state = useRequest(() => api.settings.accounts(), []);
   const [editing, setEditing] = useState<Account | "new" | null>(null);
   const [reconciling, setReconciling] = useState<Account | null>(null);
+  const [exporting, setExporting] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -294,6 +295,23 @@ function AccountsSettings() {
       state.retry();
     } catch (reason) {
       setError(messageOf(reason));
+    }
+  };
+  const exportCsv = async (account: Account) => {
+    setExporting(account.id);
+    setError(null);
+    try {
+      const { blob, filename } = await api.settings.exportAccount(account.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(messageOf(reason));
+    } finally {
+      setExporting(null);
     }
   };
   return (
@@ -432,6 +450,13 @@ function AccountsSettings() {
                     onClick={() => setReconciling(account)}
                   >
                     Conciliar saldo
+                  </Button>
+                  <Button
+                    variant="quiet"
+                    disabled={exporting === account.id}
+                    onClick={() => void exportCsv(account)}
+                  >
+                    {exporting === account.id ? "Exportando…" : "Exportar CSV"}
                   </Button>
                   <Button variant="quiet" onClick={() => void archive(account)}>
                     <Archive size={16} />{" "}

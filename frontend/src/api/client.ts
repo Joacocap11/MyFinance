@@ -154,6 +154,26 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
+async function downloadRequest(path: string, retried = false): Promise<{ blob: Blob; filename: string }> {
+  const headers = new Headers();
+  if (session) headers.set("Authorization", `Bearer ${session.access_token}`);
+  const response = await fetch(`${API_BASE}${path}`, { headers });
+  if (response.status === 401 && !retried && (await refreshSession()))
+    return downloadRequest(path, true);
+  if (!response.ok) {
+    let body: ApiErrorBody | undefined;
+    try {
+      body = (await response.json()) as ApiErrorBody;
+    } catch {
+      body = undefined;
+    }
+    throw new ApiError(response.status, errorMessage(body, `No se pudo descargar el archivo (${response.status})`), body);
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = /filename="([^"]+)"/i.exec(disposition)?.[1] ?? "myfinance-export.csv";
+  return { blob: await response.blob(), filename };
+}
+
 
 function query(params: object): string {
   const search = new URLSearchParams();
@@ -255,7 +275,6 @@ export const api = {
     ) =>
       request<{
         account: Account;
-        calculated_balance: string;
         actual_balance: string;
         adjustment: BalanceAdjustment | null;
         already_reconciled: boolean;
@@ -263,6 +282,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify(input),
       }),
+    exportAccount: (id: number) => downloadRequest(`/settings/accounts/${id}/export.csv`),
     categories: () => request<Category[]>("/settings/categories"),
     createCategory: (input: Omit<Category, "id">) =>
       request<Category>("/settings/categories", {

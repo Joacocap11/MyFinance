@@ -168,6 +168,8 @@ def parse_kind(value: str) -> models.TransactionKind:
         return models.TransactionKind.INCOME
     if normalized in {"expense", "gasto", "debito", "debit", "debe"}:
         return models.TransactionKind.EXPENSE
+    if normalized in {"transfer", "transferencia"}:
+        return models.TransactionKind.TRANSFER
     raise DomainError(f"Tipo de movimiento inválido en el CSV: {value}")
 
 
@@ -175,6 +177,27 @@ def mapped_value(raw: dict[str, str], column: str | None, label: str) -> str:
     if not column or column not in raw:
         raise DomainError(f"La columna mapeada para {label} no existe")
     return raw[column]
+
+
+def category_from_path(db: Session, value: str, kind: models.TransactionKind) -> int | None:
+    parts = [part.strip() for part in value.split(">") if part.strip()]
+    if not parts:
+        return None
+    parent_id: int | None = None
+    category: models.Category | None = None
+    for part in parts:
+        category = db.scalar(
+            select(models.Category).where(
+                models.Category.name == part,
+                models.Category.kind == kind,
+                models.Category.parent_id == parent_id,
+                owner_clause(db, models.Category),
+            )
+        )
+        if category is None:
+            return None
+        parent_id = category.id
+    return category.id if category else None
 
 
 def row_values(
@@ -214,6 +237,53 @@ def row_values(
     return posted_on, description, amount, kind
 
 
+def native_fields(
+    db: Session, raw: dict[str, str], mapping: schemas.ImportMapping, source: models.Account
+) -> dict[str, object]:
+    if mapping.currency and raw.get(mapping.currency) and raw[mapping.currency] != source.currency:
+        raise DomainError("La moneda del CSV no coincide con la cuenta de destino")
+    destination_account_id = None
+    destination: models.Account | None = None
+    if mapping.destination_account and raw.get(mapping.destination_account):
+        destination = db.scalar(
+            select(models.Account).where(
+                models.Account.name == raw[mapping.destination_account],
+                owner_clause(db, models.Account),
+            )
+        )
+        if destination is None:
+            raise DomainError("La cuenta destino de la transferencia no existe")
+        destination_account_id = destination.id
+        if (
+            mapping.destination_currency
+            and raw.get(mapping.destination_currency)
+            and raw[mapping.destination_currency] != destination.currency
+        ):
+            raise DomainError("La moneda de destino no coincide con la cuenta destino")
+    destination_amount = (
+        parse_decimal(raw[mapping.destination_amount])
+        if mapping.destination_amount and raw.get(mapping.destination_amount)
+        else None
+    )
+    try:
+        purpose = (
+            models.TransferPurpose(raw[mapping.purpose])
+            if mapping.purpose and raw.get(mapping.purpose)
+            else None
+        )
+    except ValueError as exc:
+        raise DomainError("Propósito de transferencia inválido") from exc
+    return {
+        "destination_account_id": destination_account_id,
+        "destination_amount": destination_amount,
+        "purpose": purpose,
+        "notes": raw.get(mapping.notes, "") or None if mapping.notes else None,
+        "voided": bool(
+            mapping.status and raw.get(mapping.status, "").lower() in {"voided", "anulado"}
+        ),
+    }
+
+
 def digest(payload: object) -> str:
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
@@ -239,6 +309,14 @@ def preview_import(
         "debit": request.mapping.debit,
         "credit": request.mapping.credit,
         "kind": request.mapping.kind,
+        "currency": request.mapping.currency,
+        "category": request.mapping.category,
+        "destination_account": request.mapping.destination_account,
+        "destination_currency": request.mapping.destination_currency,
+        "destination_amount": request.mapping.destination_amount,
+        "purpose": request.mapping.purpose,
+        "status": request.mapping.status,
+        "notes": request.mapping.notes,
     }
     missing = {column for column in mapping.values() if column and column not in batch.headers}
     if missing:
@@ -282,7 +360,11 @@ def preview_import(
             )
             continue
 
-        category_id = match_rule(db, description, kind)
+        category_id = (
+            category_from_path(db, raw.get(request.mapping.category, ""), kind)
+            if request.mapping.category
+            else match_rule(db, description, kind)
+        )
         semantic = semantic_fingerprint(
             account_id=account.id,
             posted_on=posted_on,
@@ -386,13 +468,15 @@ def confirm_import(db: Session, batch_id: str) -> schemas.ImportConfirmOut:
     )
     if account is None or not account.is_active:
         raise DomainError("La cuenta no existe o está inactiva", 409)
+    mapping = schemas.ImportMapping(**(batch.mapping or {}))
     try:
         for row in batch.rows:
             if row.disposition != models.ImportDisposition.IMPORT:
                 continue
             if row.error or row.date is None or row.amount is None or row.kind is None:
                 raise DomainError("Una fila inválida no se puede importar", 409)
-            validate_category(db, row.category_id, row.kind)
+            if row.kind != models.TransactionKind.TRANSFER:
+                validate_category(db, row.category_id, row.kind)
             exact = db.scalar(
                 select(models.Transaction).where(
                     models.Transaction.origin_key == row.origin_key,
@@ -403,6 +487,20 @@ def confirm_import(db: Session, batch_id: str) -> schemas.ImportConfirmOut:
                 row.disposition = models.ImportDisposition.SKIP
                 row.transaction_id = exact.id
                 continue
+            fields = native_fields(db, row.raw, mapping, account)
+            if row.kind == models.TransactionKind.TRANSFER:
+                if fields["destination_account_id"] is None:
+                    raise DomainError("Una transferencia requiere cuenta destino")
+                category_id = None
+            else:
+                category_id = row.category_id
+                fields = {
+                    "destination_account_id": None,
+                    "destination_amount": None,
+                    "purpose": None,
+                    "notes": fields["notes"],
+                    "voided": fields["voided"],
+                }
             transaction = models.Transaction(
                 owner_id=current_owner_id(db),
                 date=row.date,
@@ -410,9 +508,14 @@ def confirm_import(db: Session, batch_id: str) -> schemas.ImportConfirmOut:
                 amount=row.amount,
                 description=row.description,
                 account_id=batch.account_id,
-                category_id=row.category_id,
+                category_id=category_id,
                 origin_key=row.origin_key,
                 semantic_fingerprint=row.semantic_fingerprint,
+                destination_account_id=fields["destination_account_id"],
+                destination_amount=fields["destination_amount"],
+                purpose=fields["purpose"],
+                notes=fields["notes"],
+                voided_at=datetime.now() if fields["voided"] else None,
             )
             db.add(transaction)
             db.flush()
