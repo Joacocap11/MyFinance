@@ -20,6 +20,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     init: true
+    restart: unless-stopped
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-myfinance}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myfinance}}
@@ -50,6 +51,7 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    restart: unless-stopped
     ports:
       - target: 80
         published: "${FRONTEND_PORT:-3000}"
