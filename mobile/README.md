@@ -53,6 +53,15 @@ npx eas-cli build --platform android --profile preview
 
 The `preview` profile produces an APK and injects the private API URL at bundle time. The installed app runs standalone and stores its session with SecureStore.
 
+The signing keystore is managed remotely by EAS for the `@joacocap11/myfinance` project and is
+reused automatically across builds — do not run `eas credentials` to generate a new one, or
+existing installs will stop accepting future updates.
+
+To ship a new version: bump `version` and increment `android.versionCode` by 1 in `app.json`
+(versionCode must always increase), rebuild with the command above, then publish the downloaded
+`.apk` — see `AppDownloads/README.md` in the sibling `AppDownloads` project for the exact publish
+steps (it copies the file into the private download portal and updates the version shown there).
+
 Quality checks:
 
 ```sh
