@@ -284,7 +284,7 @@ export const api = {
       }),
     exportAccount: (id: number) => downloadRequest(`/settings/accounts/${id}/export.csv`),
     categories: () => request<Category[]>("/settings/categories"),
-    createCategory: (input: Omit<Category, "id">) =>
+    createCategory: (input: Omit<Category, "id" | "is_active">) =>
       request<Category>("/settings/categories", {
         method: "POST",
         body: JSON.stringify(input),
@@ -299,7 +299,7 @@ export const api = {
       }),
     recurring: () =>
       request<RecurringExpense[]>("/settings/recurring-expenses"),
-    createRecurring: (input: Omit<RecurringExpense, "id">) =>
+    createRecurring: (input: Omit<RecurringExpense, "id" | "is_active">) =>
       request<RecurringExpense>("/settings/recurring-expenses", {
         method: "POST",
         body: JSON.stringify(input),
@@ -313,7 +313,7 @@ export const api = {
         body: JSON.stringify(input),
       }),
     rules: () => request<CategoryRule[]>("/settings/rules"),
-    createRule: (input: Omit<CategoryRule, "id">) =>
+    createRule: (input: Omit<CategoryRule, "id" | "is_active">) =>
       request<CategoryRule>("/settings/rules", {
         method: "POST",
         body: JSON.stringify(input),

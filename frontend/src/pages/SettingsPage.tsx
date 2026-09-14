@@ -576,7 +576,6 @@ function CategoriesSettings() {
           name: formText(data, "name"),
           kind: formText(data, "kind") as CategoryKind,
           parent_id: parentId,
-          is_active: true,
         });
       else if (editing)
         await api.settings.updateCategory(editing.id, {
@@ -758,7 +757,6 @@ function RulesSettings() {
       needle: formText(data, "needle"),
       category_id: Number(formText(data, "category_id")),
       priority: Number(formText(data, "priority")),
-      is_active: true,
     };
     try {
       if (editing === "new") await api.settings.createRule(input);
@@ -919,7 +917,6 @@ function RecurringSettings() {
       day_of_month: Number(formText(data, "day_of_month")),
       account_id: Number(formText(data, "account_id")),
       category_id: Number(formText(data, "category_id")),
-      is_active: true,
     };
     try {
       if (editing === "new") await api.settings.createRecurring(input);
