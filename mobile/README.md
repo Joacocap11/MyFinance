@@ -9,15 +9,17 @@ cd mobile
 npm ci --legacy-peer-deps
 cp .env.production.example .env
 ```
-The Android production APK always uses the private LAN/WireGuard API:
+The Android production APK always uses the home.arpa split-DNS hostname (resolves to
+`192.168.1.15` on LAN via AdGuard, `10.99.0.15` over WireGuard):
 
 ```env
-EXPO_PUBLIC_API_BASE_URL=http://192.168.1.15:3000/api/v1
+EXPO_PUBLIC_API_BASE_URL=http://myfinance.home.arpa:3000/api/v1
 ```
 This URL is public build configuration, not a secret. Do not replace it with
 `localhost`, `127.0.0.1`, `10.0.2.2`, or a public IP.
 
-The phone must reach `192.168.1.15` through home Wi-Fi or WireGuard. The app
+The phone must have `myfinance.home.arpa` resolvable (home Wi-Fi with AdGuard as DNS,
+or WireGuard with split DNS pushed) and reach the resolved address. The app
 does not detect or configure VPN and the API is not exposed to the Internet.
 
 The phone flow is:
@@ -27,7 +29,7 @@ Celular
   ↓
 Wi-Fi de casa o WireGuard
   ↓
-192.168.1.15:3000/api/v1
+myfinance.home.arpa:3000/api/v1
   ↓
 FastAPI
 ```
