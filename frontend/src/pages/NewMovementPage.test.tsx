@@ -122,4 +122,49 @@ describe("NewMovementPage", () => {
       screen.getByRole("button", { name: "Guardar transferencia" }),
     ).not.toBeDisabled();
   });
+
+  it("preselecciona la cuenta marcada is_default sin importar el orden del listado", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = requestUrl(input);
+        if (url.includes("/settings/accounts"))
+          return Promise.resolve(
+            json([
+              {
+                id: 1,
+                name: "BHU Cuenta Ahorro",
+                currency: "UYU",
+                opening_balance: "0.00",
+                current_balance: "0.00",
+                is_active: true,
+                is_default: false,
+              },
+              {
+                id: 2,
+                name: "Cuenta principal",
+                currency: "UYU",
+                opening_balance: "0.00",
+                current_balance: "0.00",
+                is_active: true,
+                is_default: true,
+              },
+            ]),
+          );
+        return Promise.resolve(json([]));
+      }),
+    );
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/movimientos/nuevo"]}>
+        <Routes>
+          <Route path="/movimientos/nuevo" element={<NewMovementPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText("Nuevo movimiento");
+    await user.click(screen.getByText("Más opciones"));
+
+    expect(screen.getByLabelText("Cuenta")).toHaveValue("2");
+  });
 });

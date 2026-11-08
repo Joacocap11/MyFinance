@@ -28,7 +28,12 @@ import {
   SegmentedControl,
   Select,
 } from "../components/ui";
-import { formatDate, formatMoney, today } from "../lib/format";
+import {
+  formatDate,
+  formatMoney,
+  getDefaultAccount,
+  today,
+} from "../lib/format";
 import { useRequest } from "../lib/useRequest";
 
 type RangeOption = "7d" | "30d" | "month" | "prev-month" | "custom";
@@ -119,7 +124,7 @@ export function BalanceHistoryPage() {
       ]);
       const accountId = search.get("account_id")
         ? Number(search.get("account_id"))
-        : accounts.find((item) => item.is_active)?.id;
+        : getDefaultAccount(accounts.filter((item) => item.is_active))?.id;
       if (!accountId) {
         return {
           accounts,

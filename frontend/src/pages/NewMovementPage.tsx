@@ -24,6 +24,7 @@ import {
 import {
   categoryPath,
   formatMoney,
+  getDefaultAccount,
   kindLabels,
   sortCategories,
   today,
@@ -90,7 +91,9 @@ function MovementForm({
     [accounts],
   );
   const [kind, setKind] = useState<MovementKind>("expense");
-  const [accountId, setAccountId] = useState(activeAccounts[0]?.id ?? 0);
+  const [accountId, setAccountId] = useState(
+    getDefaultAccount(activeAccounts)?.id ?? 0,
+  );
   const [destinationId, setDestinationId] = useState(0);
   const [destinationAmount, setDestinationAmount] = useState("");
   const [purpose, setPurpose] = useState<TransferPurpose>("regular");

@@ -19,6 +19,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -88,6 +89,13 @@ class Account(TimestampMixin, Base):
             name="ck_accounts_opening_balance",
         ),
         UniqueConstraint("owner_id", "name", name="uq_account_owner_name"),
+        Index(
+            "uq_accounts_one_default_per_owner",
+            "owner_id",
+            unique=True,
+            postgresql_where=text("is_default"),
+            sqlite_where=text("is_default"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -98,6 +106,7 @@ class Account(TimestampMixin, Base):
     )
     opening_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class BalanceAdjustment(TimestampMixin, Base):

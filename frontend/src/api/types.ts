@@ -24,6 +24,7 @@ export interface Account {
   opening_balance: string;
   current_balance: string;
   is_active: boolean;
+  is_default: boolean;
   adjustments?: BalanceAdjustment[];
 }
 

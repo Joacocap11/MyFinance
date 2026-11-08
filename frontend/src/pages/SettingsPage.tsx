@@ -39,16 +39,16 @@ import {
   StatusPill,
 } from "../components/ui";
 import { formText, parseMoney } from "../lib/form";
-import { categoryPath, formatMoney, sortCategories } from "../lib/format";
+import {
+  categoryPath,
+  formatMoney,
+  getDefaultAccount,
+  sortCategories,
+} from "../lib/format";
 import { useRequest } from "../lib/useRequest";
 
 type SettingsSection =
-  | "categories"
-  | "rules"
-  | "recurring"
-  | "budget"
-  | "security"
-  | "users";
+  "categories" | "rules" | "recurring" | "budget" | "security" | "users";
 
 const sectionNavigation: Array<{
   id: SettingsSection;
@@ -124,7 +124,9 @@ export function SettingsPage() {
           {section === "recurring" ? <RecurringSettings /> : null}
           {section === "budget" ? <BudgetSettings /> : null}
           {section === "security" ? <SecuritySettings /> : null}
-          {section === "users" && session?.user.is_admin ? <UsersSettings /> : null}
+          {section === "users" && session?.user.is_admin ? (
+            <UsersSettings />
+          ) : null}
         </section>
       </div>
     </div>
@@ -169,24 +171,57 @@ function SecuritySettings() {
         description="Actualizá tu contraseña. Después tendrás que volver a iniciar sesión."
       />
       {error ? <ErrorState compact message={error} /> : null}
-      {success ? <p className="state state--success" role="status">{success}</p> : null}
+      {success ? (
+        <p className="state state--success" role="status">
+          {success}
+        </p>
+      ) : null}
       <form className="settings-form" onSubmit={(event) => void save(event)}>
         <h3>Cambiar contraseña</h3>
         <Field label="Contraseña actual">
-          <Input name="current_password" type={showCurrent ? "text" : "password"} required autoComplete="current-password" />
-          <Button type="button" variant="quiet" onClick={() => setShowCurrent((value) => !value)}>
+          <Input
+            name="current_password"
+            type={showCurrent ? "text" : "password"}
+            required
+            autoComplete="current-password"
+          />
+          <Button
+            type="button"
+            variant="quiet"
+            onClick={() => setShowCurrent((value) => !value)}
+          >
             {showCurrent ? "Ocultar" : "Mostrar"}
           </Button>
         </Field>
         <Field label="Nueva contraseña" hint="Mínimo 10 caracteres">
-          <Input name="new_password" type={showNew ? "text" : "password"} minLength={10} required autoComplete="new-password" />
-          <Button type="button" variant="quiet" onClick={() => setShowNew((value) => !value)}>
+          <Input
+            name="new_password"
+            type={showNew ? "text" : "password"}
+            minLength={10}
+            required
+            autoComplete="new-password"
+          />
+          <Button
+            type="button"
+            variant="quiet"
+            onClick={() => setShowNew((value) => !value)}
+          >
             {showNew ? "Ocultar" : "Mostrar"}
           </Button>
         </Field>
         <Field label="Confirmar nueva contraseña">
-          <Input name="confirm_password" type={showConfirmation ? "text" : "password"} minLength={10} required autoComplete="new-password" />
-          <Button type="button" variant="quiet" onClick={() => setShowConfirmation((value) => !value)}>
+          <Input
+            name="confirm_password"
+            type={showConfirmation ? "text" : "password"}
+            minLength={10}
+            required
+            autoComplete="new-password"
+          />
+          <Button
+            type="button"
+            variant="quiet"
+            onClick={() => setShowConfirmation((value) => !value)}
+          >
             {showConfirmation ? "Ocultar" : "Mostrar"}
           </Button>
         </Field>
@@ -528,15 +563,37 @@ function UsersSettings() {
       <SettingsHeading
         title="Usuarios"
         description="Administrá el acceso sin mezclar datos financieros entre usuarios."
-        action={<Button onClick={() => setCreating(true)}><Plus size={16} /> Nuevo usuario</Button>}
+        action={
+          <Button onClick={() => setCreating(true)}>
+            <Plus size={16} /> Nuevo usuario
+          </Button>
+        }
       />
       {error ? <ErrorState compact message={error} /> : null}
       {creating ? (
         <form className="settings-form" onSubmit={(event) => void save(event)}>
           <h3>Nuevo usuario</h3>
-          <Field label="Email"><Input name="email" type="email" required autoFocus /></Field>
-          <Field label="Contraseña inicial"><Input name="password" type="password" required minLength={10} autoComplete="new-password" /></Field>
-          <Field label="Confirmar contraseña"><Input name="confirm_password" type="password" required minLength={10} autoComplete="new-password" /></Field>
+          <Field label="Email">
+            <Input name="email" type="email" required autoFocus />
+          </Field>
+          <Field label="Contraseña inicial">
+            <Input
+              name="password"
+              type="password"
+              required
+              minLength={10}
+              autoComplete="new-password"
+            />
+          </Field>
+          <Field label="Confirmar contraseña">
+            <Input
+              name="confirm_password"
+              type="password"
+              required
+              minLength={10}
+              autoComplete="new-password"
+            />
+          </Field>
           <FormActions saving={saving} cancel={() => setCreating(false)} />
         </form>
       ) : null}
@@ -544,11 +601,23 @@ function UsersSettings() {
         <div className="settings-list">
           {state.data.map((user) => (
             <article key={user.id}>
-              <div className="settings-list__icon"><UserRound /></div>
-              <div><strong>{user.email}</strong><span>{user.is_admin ? "Administrador" : "Usuario"} · {user.is_active ? "Activo" : "Inactivo"}</span></div>
-              <StatusPill tone={user.is_active ? "success" : "neutral"}>{user.is_active ? "Activo" : "Inactivo"}</StatusPill>
+              <div className="settings-list__icon">
+                <UserRound />
+              </div>
+              <div>
+                <strong>{user.email}</strong>
+                <span>
+                  {user.is_admin ? "Administrador" : "Usuario"} ·{" "}
+                  {user.is_active ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+              <StatusPill tone={user.is_active ? "success" : "neutral"}>
+                {user.is_active ? "Activo" : "Inactivo"}
+              </StatusPill>
               <div className="row-actions">
-                <Button variant="quiet" onClick={() => void toggle(user)}>{user.is_active ? "Desactivar" : "Activar"}</Button>
+                <Button variant="quiet" onClick={() => void toggle(user)}>
+                  {user.is_active ? "Desactivar" : "Activar"}
+                </Button>
               </div>
             </article>
           ))}
@@ -982,7 +1051,13 @@ function RecurringSettings() {
             <Select
               name="account_id"
               required
-              defaultValue={editing === "new" ? "" : editing.account_id}
+              defaultValue={
+                editing === "new"
+                  ? (getDefaultAccount(
+                      recurringData.accounts.filter((item) => item.is_active),
+                    )?.id ?? "")
+                  : editing.account_id
+              }
             >
               <option value="">Elegí una cuenta</option>
               {recurringData.accounts

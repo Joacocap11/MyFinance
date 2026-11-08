@@ -378,7 +378,7 @@ def list_accounts(db: Db) -> list[schemas.AccountOut]:
     accounts = db.scalars(
         select(models.Account)
         .where(domain.owner_clause(db, models.Account))
-        .order_by(models.Account.name)
+        .order_by(models.Account.is_default.desc(), models.Account.name)
     ).all()
     return [domain.account_out(db, account) for account in accounts]
 
@@ -411,7 +411,14 @@ def create_account(data: schemas.AccountCreate, db: Db) -> schemas.AccountOut:
 @router.patch("/settings/accounts/{account_id}", response_model=schemas.AccountOut)
 def patch_account(account_id: int, data: schemas.AccountPatch, db: Db) -> schemas.AccountOut:
     account = domain.get_or_404(db, models.Account, account_id)
-    apply_patch(account, data)
+    values = data.model_dump(exclude_unset=True)
+    make_default = values.pop("is_default", None)
+    for key, value in values.items():
+        setattr(account, key, value)
+    if make_default:
+        domain.set_default_account(db, account)
+    elif make_default is False:
+        account.is_default = False
     db.commit()
     db.refresh(account)
     return domain.account_out(db, account)

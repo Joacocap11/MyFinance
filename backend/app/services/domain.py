@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -64,6 +64,25 @@ def get_or_404[T: Base](db: Session, model: type[T], object_id: int | str) -> T:
     if value is None:
         raise DomainError("Recurso no encontrado", 404)
     return value
+
+
+def set_default_account(db: Session, account: models.Account) -> None:
+    """Mark ``account`` as the owner's single default account.
+
+    Unsets any previous default for the same owner in the same transaction
+    so at most one account per owner is ever flagged as default (also
+    enforced by a partial unique index at the database level).
+    """
+    db.execute(
+        update(models.Account)
+        .where(
+            models.Account.owner_id == account.owner_id,
+            models.Account.id != account.id,
+            models.Account.is_default.is_(True),
+        )
+        .values(is_default=False)
+    )
+    account.is_default = True
 
 
 def validate_category(
@@ -346,5 +365,6 @@ def account_out(db: Session, account: models.Account) -> schemas.AccountOut:
         opening_balance=account.opening_balance,
         current_balance=account_balance(db, account),
         is_active=account.is_active,
+        is_default=account.is_default,
         adjustments=[schemas.BalanceAdjustmentOut.model_validate(item) for item in adjustments],
     )

@@ -33,6 +33,7 @@ import {
   categoryPath,
   formatDate,
   formatMoney,
+  getDefaultAccount,
   kindLabels,
   sortCategories,
 } from "../lib/format";
@@ -81,7 +82,9 @@ function ImportWorkflow({
   accounts: Account[];
   categories: Category[];
 }) {
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? 0);
+  const [accountId, setAccountId] = useState(
+    getDefaultAccount(accounts)?.id ?? 0,
+  );
   const [batch, setBatch] = useState<ImportBatch | null>(null);
   const [mapping, setMapping] = useState<ImportMapping>({
     date: "",
@@ -129,13 +132,18 @@ function ImportWorkflow({
       const native = uploaded.headers.includes("myfinance_format_version");
       setMapping({
         date: native ? "date" : findHeader(["fecha", "date"]),
-        description: native ? "description" : findHeader([
-          "descripción", "descripcion", "concepto", "description",
-        ]),
-        amount: native ? "amount" : (splitAmounts ? undefined : amount),
-        debit: native ? undefined : (splitAmounts ? debit : undefined),
-        credit: native ? undefined : (splitAmounts ? credit : undefined),
-        kind: native ? "kind" : (findHeader(["tipo", "kind"]) || undefined),
+        description: native
+          ? "description"
+          : findHeader([
+              "descripción",
+              "descripcion",
+              "concepto",
+              "description",
+            ]),
+        amount: native ? "amount" : splitAmounts ? undefined : amount,
+        debit: native ? undefined : splitAmounts ? debit : undefined,
+        credit: native ? undefined : splitAmounts ? credit : undefined,
+        kind: native ? "kind" : findHeader(["tipo", "kind"]) || undefined,
         currency: native ? "currency" : undefined,
         category: native ? "category" : undefined,
         destination_account: native ? "destination_account" : undefined,

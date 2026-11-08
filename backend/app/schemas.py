@@ -94,6 +94,7 @@ class AccountPatch(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=100)
     is_active: bool | None = None
+    is_default: bool | None = None
 
 
 class BalanceAdjustmentCreate(BaseModel):
@@ -119,6 +120,7 @@ class AccountOut(ORMModel):
     opening_balance: Decimal
     current_balance: Decimal
     is_active: bool
+    is_default: bool
     adjustments: list[BalanceAdjustmentOut] = Field(default_factory=list)
 
 

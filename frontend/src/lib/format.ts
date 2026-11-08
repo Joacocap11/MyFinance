@@ -41,6 +41,16 @@ export function signedMoney(
   return `${prefix}${formatMoney(movement.amount, currency)}`;
 }
 
+/**
+ * Picks the account that initial-selection UI (new movement, import,
+ * saldo histórico, etc.) should show by default: the account flagged
+ * `is_default`, or the first one otherwise. Callers filter by `is_active`
+ * first when only usable accounts should be considered.
+ */
+export function getDefaultAccount(accounts: Account[]): Account | undefined {
+  return accounts.find((item) => item.is_default) ?? accounts[0];
+}
+
 export function formatMonth(value: string): string {
   const [year, month] = value.split("-").map(Number);
   if (!year || !month) return value;
