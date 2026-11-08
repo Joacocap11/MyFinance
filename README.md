@@ -11,6 +11,7 @@ No es un ERP ni un sistema contable. No incluye conversiones de moneda, integrac
 - Alta rápida de ingresos, gastos y transferencias entre cuentas de la misma moneda.
 - Explorador de movimientos con filtros, búsqueda, edición y anulación histórica.
 - Histórico de los últimos meses.
+- Saldo histórico por cuenta y por fecha: saldo de apertura/cierre de cualquier día, evolución diaria y estadísticas (mínimo, máximo, variación neta) de un período.
 - Cuentas UYU/USD sin mezclar monedas ni realizar conversiones.
 - Categorías configurables y subcategorías para analizar el costo del auto.
 - Definiciones de gastos recurrentes, sin generar movimientos automáticamente.
@@ -178,7 +179,9 @@ Código principal:
 - `backend/app/api.py`: endpoints bajo `/api/v1`.
 - `backend/app/models.py`: modelos y restricciones de base de datos.
 - `backend/app/schemas.py`: validación y contratos JSON.
-- `backend/app/services/`: movimientos, reportes, categorías, reglas e importaciones.
+- `backend/app/services/domain.py`: reglas de movimientos, transferencias y saldo (`account_balance`).
+- `backend/app/services/analytics.py`: saldo histórico por cuenta y fecha (ver sección dedicada).
+- `backend/app/services/`: reportes, categorías, reglas e importaciones.
 - `backend/app/seed.py`: datos iniciales idempotentes.
 - `backend/alembic/`: migraciones.
 
@@ -207,7 +210,7 @@ Rutas principales:
 - `/movimientos`: explorador y filtros.
 - `/movimientos/nuevo`: alta rápida.
 - `/historico`: evolución mensual.
-- `/importar`: importación CSV.
+- `/saldo-historico`: saldo histórico por cuenta y fecha, evolución y estadísticas.
 - `/ajustes`: cuentas, categorías, reglas, recurrentes y presupuesto.
 
 Comandos:
@@ -232,6 +235,35 @@ La importación nunca crea movimientos al subir el archivo. El flujo es:
 5. Confirmar. La confirmación es atómica e idempotente.
 
 Se aceptan fechas comunes como `AAAA-MM-DD`, `DD/MM/AAAA` y `DD-MM-AAAA`. El servidor normaliza importes con coma o punto decimal. Una coincidencia exacta de origen impide reimportar la misma fila; una coincidencia semántica solo se marca para revisión porque dos compras iguales pueden ser legítimas.
+
+## Saldo histórico
+
+Responde con precisión preguntas como "¿cuánta plata tenía el 7 de octubre?" sin estimaciones ni IA: todo el cálculo vive en `backend/app/services/analytics.py` y reutiliza `services.domain.account_balance`, la misma función que ya expone el saldo actual de cada cuenta.
+
+**Fórmula.** Para una cuenta y una fecha:
+
+```text
+saldo de cierre(fecha) = opening_balance de la cuenta
+                        + Σ movimientos no anulados con date <= fecha
+                        + Σ ajustes de conciliación con date <= fecha
+saldo de apertura(fecha) = saldo de cierre(fecha - 1 día)
+```
+
+Un movimiento que afecta la cuenta suma (ingreso, o transferencia entrante) o resta (gasto, o transferencia saliente). Una transferencia es una única fila en `transactions` con `account_id` (origen) y `destination_account_id` (destino): resta del saldo de la cuenta origen y suma al saldo de la cuenta destino, por lo que el patrimonio conjunto de ambas cuentas no cambia, pero el saldo individual de cada una sí. El `date` de `transactions` (sin hora ni timezone) es la única fecha contable; varios movimientos del mismo día se agregan todos dentro de ese día.
+
+**Endpoints** (requieren autenticación, igual que el resto de `/api/v1`):
+
+- `GET /api/v1/analytics/balance-at-date?account_id=&date=&moment=closing|opening`: saldo de un día puntual, con el desglose de ingresos, gastos, transferencias entrantes/salientes, ajustes, variación neta y cantidad de movimientos.
+- `GET /api/v1/analytics/balance-history?account_id=&date_from=&date_to=`: serie diaria de saldo de apertura/cierre. Los días sin movimientos repiten el saldo del día anterior (no hay huecos).
+- `GET /api/v1/analytics/balance-summary?account_id=&date_from=&date_to=`: saldo inicial/final del período, saldo mínimo y máximo con su fecha, variación neta, y totales de ingresos/gastos/transferencias.
+
+`balance-history` y `balance-summary` resuelven el período completo con dos consultas agregadas (movimientos y ajustes agrupados por fecha) más el saldo de arranque; no hay una consulta por día, por lo que el costo no crece con la cantidad de días solicitados.
+
+**Alcance.** Los tres endpoints requieren `account_id`: no existe todavía un "patrimonio global" porque las cuentas pueden estar en monedas distintas (UYU/USD/UI) y sumarlas sin una tasa de conversión determinista daría un número engañoso. Queda documentado como una fase siguiente, a implementar si se agrega una tasa de conversión explícita y auditable.
+
+**Frontend.** La página `/saldo-historico` permite elegir cuenta y fecha (con atajos Hoy/Ayer/Inicio de mes/Fin de mes pasado), muestra el saldo de cierre del día junto a su desglose, lista los movimientos de ese día (reutilizando el listado de movimientos existente) y grafica la evolución del saldo en un rango seleccionable (7 días, 30 días, mes actual, mes anterior o personalizado) junto con el saldo mínimo/máximo del período.
+
+**Preparado para un asistente futuro.** `balance_at_date`, `balance_history`, `balance_summary`, `get_min_balance` y `get_max_balance` en `app/services/analytics.py` son funciones puras de backend (sin IA) pensadas para exponerse después como herramientas de un asistente local: siempre devuelven `Decimal`/`NUMERIC`, nunca estimaciones.
 
 ## Pruebas y calidad
 
@@ -260,7 +292,8 @@ Docker Compose:
 docker compose config
 ```
 
-Los tests cubren las reglas de movimientos y transferencias, dinero decimal, anulaciones, cálculos mensuales, categorías, reglas de categorización, importación CSV, deduplicación y aislamiento por moneda y usuario. El frontend cubre los flujos críticos de resumen, alta rápida, evidencia de movimientos, importación y administración de usuarios.
+Los tests cubren las reglas de movimientos y transferencias, dinero decimal, anulaciones, cálculos mensuales, categorías, reglas de categorización, importación CSV, deduplicación, aislamiento por moneda y usuario, y saldo histórico (saldo de apertura/cierre, transferencias, huecos sin movimientos, mínimo/máximo del período y coincidencia exacta con el saldo actual). El frontend cubre los flujos críticos de resumen, alta rápida, evidencia de movimientos, importación y administración de usuarios.
+
 ## Seguridad y límites actuales
 Todas las rutas financieras requieren autenticación; health, login y refresh son públicos. El registro solo funciona para bootstrap cuando todavía no existe ningún usuario. El administrador no obtiene acceso global a los datos financieros.
 
@@ -271,3 +304,4 @@ Todas las rutas financieras requieren autenticación; health, login y refresh so
 - La autenticación expone registro inicial, login, refresh y `/auth/me`; usar un `JWT_SECRET` aleatorio fuera de desarrollo.
 - PostgreSQL no se publica en Compose; el acceso remoto esperado es mediante la red privada/WireGuard.
 - UYU y USD se reportan por separado. No existen conversiones automáticas ni transferencias entre monedas.
+- El saldo histórico es por cuenta; no existe un patrimonio global consolidado entre cuentas de distinta moneda (ver sección "Saldo histórico").

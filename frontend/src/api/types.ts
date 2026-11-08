@@ -100,6 +100,56 @@ export interface ReportComparison {
   change_percentage: string | number | null;
 }
 
+export type BalanceMoment = "opening" | "closing";
+
+export interface BalanceAtDate {
+  account_id: number;
+  date: string;
+  moment: BalanceMoment;
+  balance: string;
+  opening_balance: string;
+  closing_balance: string;
+  income: string;
+  expenses: string;
+  transfers_in: string;
+  transfers_out: string;
+  adjustments: string;
+  net_change: string;
+  transaction_count: number;
+}
+
+export interface BalanceHistoryDay {
+  date: string;
+  opening_balance: string;
+  closing_balance: string;
+}
+
+export interface BalanceHistory {
+  account_id: number;
+  date_from: string;
+  date_to: string;
+  days: BalanceHistoryDay[];
+}
+
+export interface BalanceSummary {
+  account_id: number;
+  date_from: string;
+  date_to: string;
+  opening_balance: string;
+  closing_balance: string;
+  min_balance: string;
+  min_balance_date: string;
+  max_balance: string;
+  max_balance_date: string;
+  net_change: string;
+  income: string;
+  expenses: string;
+  transfers_in: string;
+  transfers_out: string;
+  adjustments: string;
+  transaction_count: number;
+}
+
 export interface ReportInsight {
   type: string;
   title: string;

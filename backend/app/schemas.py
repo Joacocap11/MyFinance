@@ -349,6 +349,57 @@ class HistoryReport(BaseModel):
     months: list[HistoryMonth]
 
 
+BalanceMoment = Literal["opening", "closing"]
+
+
+class BalanceAtDateOut(BaseModel):
+    account_id: int
+    date: Date
+    moment: BalanceMoment
+    balance: Decimal
+    opening_balance: Decimal
+    closing_balance: Decimal
+    income: Decimal
+    expenses: Decimal
+    transfers_in: Decimal
+    transfers_out: Decimal
+    adjustments: Decimal
+    net_change: Decimal
+    transaction_count: int
+
+
+class BalanceHistoryDay(BaseModel):
+    date: Date
+    opening_balance: Decimal
+    closing_balance: Decimal
+
+
+class BalanceHistoryOut(BaseModel):
+    account_id: int
+    date_from: Date
+    date_to: Date
+    days: list[BalanceHistoryDay]
+
+
+class BalanceSummaryOut(BaseModel):
+    account_id: int
+    date_from: Date
+    date_to: Date
+    opening_balance: Decimal
+    closing_balance: Decimal
+    min_balance: Decimal
+    min_balance_date: Date
+    max_balance: Decimal
+    max_balance_date: Date
+    net_change: Decimal
+    income: Decimal
+    expenses: Decimal
+    transfers_in: Decimal
+    transfers_out: Decimal
+    adjustments: Decimal
+    transaction_count: int
+
+
 class ImportUploadOut(ORMModel):
     id: str
     filename: str

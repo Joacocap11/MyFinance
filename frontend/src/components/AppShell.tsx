@@ -1,6 +1,7 @@
 import {
   Archive,
   ArrowDownUp,
+  CalendarSearch,
   FileUp,
   LayoutDashboard,
   LogOut,
@@ -16,6 +17,7 @@ const primaryNavigation = [
   { to: "/movimientos", label: "Movimientos", icon: ArrowDownUp },
   { to: "/cuentas", label: "Cuentas", icon: WalletCards },
   { to: "/historico", label: "Histórico", icon: Archive },
+  { to: "/saldo-historico", label: "Saldo histórico", icon: CalendarSearch },
   { to: "/importar", label: "Importar", icon: FileUp },
   { to: "/ajustes", label: "Ajustes", icon: Settings },
 ];
@@ -27,16 +29,21 @@ function isPrimaryNavigationActive(
   end?: boolean,
 ) {
   if (to === "/cuentas") {
-    return pathname === "/cuentas" || (
-      pathname === "/ajustes" &&
-      new URLSearchParams(search).get("section") === "accounts"
+    return (
+      pathname === "/cuentas" ||
+      (pathname === "/ajustes" &&
+        new URLSearchParams(search).get("section") === "accounts")
     );
   }
   if (to === "/ajustes") {
-    return pathname === "/ajustes" &&
-      new URLSearchParams(search).get("section") !== "accounts";
+    return (
+      pathname === "/ajustes" &&
+      new URLSearchParams(search).get("section") !== "accounts"
+    );
   }
-  return end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`);
+  return end
+    ? pathname === to
+    : pathname === to || pathname.startsWith(`${to}/`);
 }
 
 export function AppShell() {
@@ -46,7 +53,11 @@ export function AppShell() {
     <div className="app-shell">
       <aside className="sidebar">
         <NavLink to="/" className="brand" aria-label="MyFinance — Resumen">
-          <img className="brand__logo" src="/branding/apple-touch-icon.png" alt="" />
+          <img
+            className="brand__logo"
+            src="/branding/apple-touch-icon.png"
+            alt=""
+          />
           <span>MyFinance</span>
         </NavLink>
         <nav aria-label="Navegación principal">
@@ -75,7 +86,11 @@ export function AppShell() {
             {session.user.email}
           </p>
         ) : null}
-        <button className="button button--secondary" type="button" onClick={logout}>
+        <button
+          className="button button--secondary"
+          type="button"
+          onClick={logout}
+        >
           <LogOut size={16} aria-hidden="true" /> Salir
         </button>
       </aside>

@@ -14,7 +14,7 @@ from app import auth, models, schemas
 from app.config import get_settings
 from app.db import get_db
 from app.seed import seed as seed_data
-from app.services import autocategorization, domain, exports, imports, reports
+from app.services import analytics, autocategorization, domain, exports, imports, reports
 
 Db = Annotated[Session, Depends(get_db)]
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(auth.current_user)])
@@ -337,6 +337,40 @@ def history_report(
     currency: models.Currency, db: Db, months: int = Query(12, ge=1, le=60)
 ) -> schemas.HistoryReport:
     return reports.history_report(db, months, currency)
+
+
+def _validate_range(date_from: date, date_to: date) -> None:
+    if date_from > date_to:
+        raise domain.DomainError("date_from no puede ser posterior a date_to", 422)
+
+
+@router.get("/analytics/balance-at-date", response_model=schemas.BalanceAtDateOut)
+def balance_at_date(
+    db: Db,
+    account_id: int,
+    on_date: Annotated[date, Query(alias="date")],
+    moment: schemas.BalanceMoment = "closing",
+) -> schemas.BalanceAtDateOut:
+    account = domain.get_or_404(db, models.Account, account_id)
+    return analytics.balance_at_date(db, account, on_date, moment)
+
+
+@router.get("/analytics/balance-history", response_model=schemas.BalanceHistoryOut)
+def balance_history(
+    db: Db, account_id: int, date_from: date, date_to: date
+) -> schemas.BalanceHistoryOut:
+    account = domain.get_or_404(db, models.Account, account_id)
+    _validate_range(date_from, date_to)
+    return analytics.balance_history_out(db, account, date_from, date_to)
+
+
+@router.get("/analytics/balance-summary", response_model=schemas.BalanceSummaryOut)
+def balance_summary(
+    db: Db, account_id: int, date_from: date, date_to: date
+) -> schemas.BalanceSummaryOut:
+    account = domain.get_or_404(db, models.Account, account_id)
+    _validate_range(date_from, date_to)
+    return analytics.balance_summary(db, account, date_from, date_to)
 
 
 @router.get("/settings/accounts", response_model=list[schemas.AccountOut])

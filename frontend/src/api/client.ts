@@ -3,6 +3,10 @@ import type {
   AdminUser,
   ApiErrorBody,
   BalanceAdjustment,
+  BalanceAtDate,
+  BalanceHistory,
+  BalanceMoment,
+  BalanceSummary,
   Category,
   CategoryRule,
   Currency,
@@ -62,12 +66,16 @@ export function persistSession(value: SessionTokens, remember: boolean): void {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(SESSION_KEY);
-  (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(value));
+  (remember ? localStorage : sessionStorage).setItem(
+    SESSION_KEY,
+    JSON.stringify(value),
+  );
 }
 
 export function updateStoredSession(value: SessionTokens): void {
   if (typeof window === "undefined") return;
-  const storage = localStorage.getItem(SESSION_KEY) !== null ? localStorage : sessionStorage;
+  const storage =
+    localStorage.getItem(SESSION_KEY) !== null ? localStorage : sessionStorage;
   storage.setItem(SESSION_KEY, JSON.stringify(value));
 }
 
@@ -78,7 +86,9 @@ export function clearStoredSession(): void {
 }
 
 export function isPersistentSession(): boolean {
-  return typeof window !== "undefined" && localStorage.getItem(SESSION_KEY) !== null;
+  return (
+    typeof window !== "undefined" && localStorage.getItem(SESSION_KEY) !== null
+  );
 }
 
 export function setSession(value: SessionTokens | null) {
@@ -124,7 +134,11 @@ function errorMessage(
   return fallback;
 }
 
-async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  retried = false,
+): Promise<T> {
   const headers = new Headers(init?.headers);
   if (session) headers.set("Authorization", `Bearer ${session.access_token}`);
   if (init?.body && !(init.body instanceof FormData))
@@ -147,14 +161,20 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
     }
     throw new ApiError(
       response.status,
-      errorMessage(body, `No se pudo completar la solicitud (${response.status})`),
+      errorMessage(
+        body,
+        `No se pudo completar la solicitud (${response.status})`,
+      ),
       body,
     );
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
-async function downloadRequest(path: string, retried = false): Promise<{ blob: Blob; filename: string }> {
+async function downloadRequest(
+  path: string,
+  retried = false,
+): Promise<{ blob: Blob; filename: string }> {
   const headers = new Headers();
   if (session) headers.set("Authorization", `Bearer ${session.access_token}`);
   const response = await fetch(`${API_BASE}${path}`, { headers });
@@ -167,13 +187,20 @@ async function downloadRequest(path: string, retried = false): Promise<{ blob: B
     } catch {
       body = undefined;
     }
-    throw new ApiError(response.status, errorMessage(body, `No se pudo descargar el archivo (${response.status})`), body);
+    throw new ApiError(
+      response.status,
+      errorMessage(
+        body,
+        `No se pudo descargar el archivo (${response.status})`,
+      ),
+      body,
+    );
   }
   const disposition = response.headers.get("Content-Disposition") ?? "";
-  const filename = /filename="([^"]+)"/i.exec(disposition)?.[1] ?? "myfinance-export.csv";
+  const filename =
+    /filename="([^"]+)"/i.exec(disposition)?.[1] ?? "myfinance-export.csv";
   return { blob: await response.blob(), filename };
 }
-
 
 function query(params: object): string {
   const search = new URLSearchParams();
@@ -193,7 +220,8 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ email, password }),
       }),
-    registrationStatus: () => request<RegistrationStatus>("/auth/registration-status"),
+    registrationStatus: () =>
+      request<RegistrationStatus>("/auth/registration-status"),
     login: (email: string, password: string) =>
       request<SessionTokens>("/auth/login", {
         method: "POST",
@@ -213,12 +241,19 @@ export const api = {
   },
   admin: {
     users: () => request<AdminUser[]>("/admin/users"),
-    createUser: (input: { email: string; password: string; is_admin?: boolean }) =>
+    createUser: (input: {
+      email: string;
+      password: string;
+      is_admin?: boolean;
+    }) =>
       request<AdminUser>("/admin/users", {
         method: "POST",
         body: JSON.stringify(input),
       }),
-    updateUser: (id: number, input: Partial<Pick<AdminUser, "is_active" | "is_admin">>) =>
+    updateUser: (
+      id: number,
+      input: Partial<Pick<AdminUser, "is_active" | "is_admin">>,
+    ) =>
       request<AdminUser>(`/admin/users/${id}`, {
         method: "PATCH",
         body: JSON.stringify(input),
@@ -233,6 +268,38 @@ export const api = {
       request<HistoryReport>(`/reports/history${query({ months, currency })}`, {
         signal,
       }),
+  },
+  analytics: {
+    balanceAtDate: (
+      accountId: number,
+      date: string,
+      moment: BalanceMoment = "closing",
+      signal?: AbortSignal,
+    ) =>
+      request<BalanceAtDate>(
+        `/analytics/balance-at-date${query({ account_id: accountId, date, moment })}`,
+        { signal },
+      ),
+    balanceHistory: (
+      accountId: number,
+      dateFrom: string,
+      dateTo: string,
+      signal?: AbortSignal,
+    ) =>
+      request<BalanceHistory>(
+        `/analytics/balance-history${query({ account_id: accountId, date_from: dateFrom, date_to: dateTo })}`,
+        { signal },
+      ),
+    balanceSummary: (
+      accountId: number,
+      dateFrom: string,
+      dateTo: string,
+      signal?: AbortSignal,
+    ) =>
+      request<BalanceSummary>(
+        `/analytics/balance-summary${query({ account_id: accountId, date_from: dateFrom, date_to: dateTo })}`,
+        { signal },
+      ),
   },
   movements: {
     list: (filters: MovementFilters, signal?: AbortSignal) =>
@@ -282,7 +349,8 @@ export const api = {
         method: "POST",
         body: JSON.stringify(input),
       }),
-    exportAccount: (id: number) => downloadRequest(`/settings/accounts/${id}/export.csv`),
+    exportAccount: (id: number) =>
+      downloadRequest(`/settings/accounts/${id}/export.csv`),
     categories: () => request<Category[]>("/settings/categories"),
     createCategory: (input: Omit<Category, "id" | "is_active">) =>
       request<Category>("/settings/categories", {

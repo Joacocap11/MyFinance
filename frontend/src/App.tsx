@@ -21,6 +21,11 @@ const HistoryPage = lazy(() =>
     default: HistoryPage,
   })),
 );
+const BalanceHistoryPage = lazy(() =>
+  import("./pages/BalanceHistoryPage").then(({ BalanceHistoryPage }) => ({
+    default: BalanceHistoryPage,
+  })),
+);
 const ImportPage = lazy(() =>
   import("./pages/ImportPage").then(({ ImportPage }) => ({
     default: ImportPage,
@@ -80,7 +85,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
         </div>
       </div>
     );
-  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!session)
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return children;
 }
 
@@ -124,6 +130,14 @@ const router = createBrowserRouter([
         element: (
           <DeferredPage>
             <HistoryPage />
+          </DeferredPage>
+        ),
+      },
+      {
+        path: "saldo-historico",
+        element: (
+          <DeferredPage>
+            <BalanceHistoryPage />
           </DeferredPage>
         ),
       },
