@@ -322,7 +322,7 @@ export const api = {
   settings: {
     accounts: () => request<Account[]>("/settings/accounts"),
     createAccount: (
-      input: Omit<Account, "id" | "current_balance" | "is_default">,
+      input: Pick<Account, "name" | "currency" | "opening_balance">,
     ) =>
       request<Account>("/settings/accounts", {
         method: "POST",

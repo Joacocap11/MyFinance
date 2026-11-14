@@ -178,7 +178,7 @@ describe("AccountsSettings", () => {
     expect(postCall).toBeDefined();
     const body = postCall?.[1]?.body;
     expect(body).toEqual(expect.any(String));
-    expect(JSON.parse(body as string)).toMatchObject({
+    expect(JSON.parse(body as string)).toEqual({
       name: "Ahorro USD",
       currency: "USD",
       opening_balance: "25.50",

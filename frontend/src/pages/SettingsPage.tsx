@@ -268,7 +268,6 @@ function AccountsSettings() {
           name: formText(data, "name"),
           currency: formText(data, "currency") as Currency,
           opening_balance: parseMoney(formText(data, "opening_balance")),
-          is_active: true,
         });
       else if (editing)
         await api.settings.updateAccount(editing.id, {
